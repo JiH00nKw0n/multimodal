@@ -4,10 +4,10 @@ import torch
 from torch import nn
 from transformers import PreTrainedModel, AutoModel
 from transformers.models.clip.modeling_clip import CLIPOutput, clip_loss
-from .configuration_base import BaseDualEncoderConfig
+from src.models.base.configuration_base import BaseDualEncoderConfig
 from src.common import registry
 
-__all__ = ["BaseDualEncoderModel"]
+__all__ = ["BaseDualEncoderModel", "BaseFrozenDualEncoderModel"]
 
 
 class BaseDualEncoderPretrainedModel(PreTrainedModel):

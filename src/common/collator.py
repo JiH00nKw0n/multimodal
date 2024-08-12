@@ -14,7 +14,6 @@ from typing import Union, List, Dict, Any, Optional, TypeVar
 from collections import defaultdict
 from PIL import Image
 from transformers.utils import PaddingStrategy
-from src.utils.utils import is_url
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +73,7 @@ class DataCollatorWithPadding:
 
 
 def _get_image(_input: Dict) -> Image.Image:
+    from src.utils.utils import is_url
     if isinstance(_input['image'], Image.Image):
         return _input['image']
     elif is_url(_input['image_url']):

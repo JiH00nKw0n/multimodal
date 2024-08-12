@@ -5,7 +5,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from src.utils import get_rank, init_distributed_mode, now
-from src.common import TrainConfig, setup_logger
+from src.common import TrainConfig, setup_logger, CustomWandbCallback
 import src.tasks as tasks
 import wandb
 
@@ -43,17 +43,18 @@ def main() -> None:
 
     init_distributed_mode(args)
     setup_seeds(train_cfg.run_config.seed)
-    setup_logger()
+    # setup_logger()
 
-    wandb.login(key=args.wandb_key)
+    # wandb.login(key=args.wandb_key)
 
     task = tasks.setup_task(train_cfg)
 
     trainer = task.build_trainer()
+    trainer.add_callback(CustomWandbCallback())
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     wandb.finish()
-
     trainer.save_model()
+
 
 if __name__ == "__main__":
     main()

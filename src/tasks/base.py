@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Extra
 from typing import Any, Optional, Dict
 from src.common import registry
+from omegaconf import OmegaConf
+from datasets import concatenate_datasets, Dataset
 
 __all__ = ["BaseTask"]
 
@@ -31,11 +33,19 @@ class BaseTask(BaseModel, extra=Extra.allow):
         del processor_config.architecture
         return processor_cls.from_config(processor_config)
 
-    def build_dataset(self, dataset_config: Optional[Dict] = None):
+    def build_dataset(self, dataset_config: Optional[Dict] = None) -> Dataset:
         dataset_config = dataset_config if dataset_config is not None else self.config.dataset_config
 
-        raise NotImplementedError
+        datasets = list()
 
-        dataset = None
-        return dataset
+        assert len(dataset_config) > 0, "At least one dataset has to be specified."
 
+        for config_url in dataset_config:
+            dataset_config = OmegaConf.load(config_url)
+
+            builder = registry.get_builder_class(dataset_config.builder)(**dataset_config.config)
+            dataset = builder.build_datasets()
+
+            datasets.append(dataset)
+
+        return concatenate_datasets(datasets)

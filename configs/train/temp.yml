@@ -18,6 +18,7 @@ processor:
     model_name_or_path: 'intfloat/multilingual-e5-large-instruct'
 
 dataset:
+  - '/Users/jihoon/Desktop/personal/multimodal/configs/datasets/conceptual_captions/defaults_3m.yml'
 
 run:
   task: 'TrainTask'
