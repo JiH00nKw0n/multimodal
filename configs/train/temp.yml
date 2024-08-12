@@ -1,0 +1,33 @@
+model:
+  _name_or_path: ''
+  architectures:
+    - 'BaseFrozenDualEncoder'
+  text_config:
+    model_name_or_path: 'intfloat/multilingual-e5-large-instruct'
+    dtype: 'fp16'
+  vision_config:
+    model_name_or_path: 'facebook/dinov2-large'
+    dtype: 'fp16'
+  projection_dim: 1024
+
+processor:
+  cls: "PretrainedProcessor"
+  image_processor:
+    model_name_or_path: 'facebook/dinov2-large'
+  tokenizer:
+    model_name_or_path: 'intfloat/multilingual-e5-large-instruct'
+
+dataset:
+
+run:
+  task: 'TrainTask'
+  trainer: 'BaseTrainer'
+  seed: 2024
+  max_seq_length: 64
+
+  device: "cuda"
+  world_size: 1
+  distributed: False
+
+trainer:
+

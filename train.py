@@ -42,7 +42,7 @@ def main() -> None:
     train_cfg = TrainConfig(**vars(args))
 
     init_distributed_mode(args)
-    setup_seeds(args.seed)
+    setup_seeds(train_cfg.run_config.seed)
     setup_logger()
 
     wandb.login(key=args.wandb_key)
@@ -54,37 +54,6 @@ def main() -> None:
     wandb.finish()
 
     trainer.save_model()
-
-    return None
-    # allow auto-dl completes on main process without timeout when using NCCL backend.
-    # os.environ["NCCL_BLOCKING_WAIT"] = "1"
-    #
-    # set before init_distributed_mode() to ensure the same job_id shared across all ranks.
-    # job_id = now()
-    #
-    # cfg = Config(parse_args())
-    #
-    # init_distributed_mode(cfg.run_cfg)
-    #
-    # setup_seeds(cfg)
-    #
-    # # set after init_distributed_mode() to only log on master.
-    # setup_logger()
-    #
-    # cfg.pretty_print()
-    #
-    # # append job_id to cfg
-    # cfg.job_id = job_id
-    #
-    # task = tasks.setup_task(cfg)
-    # datasets = task.build_datasets(cfg)
-    # model = task.build_model(cfg)
-    #
-    # runner = get_runner_class(cfg)(
-    #     cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
-    # )
-    # runner.train()
-
 
 if __name__ == "__main__":
     main()

@@ -16,8 +16,10 @@ from transformers.processing_utils import (
 )
 from transformers.tokenization_utils_base import BatchEncoding, PreTokenizedInput, TextInput
 from src.common import registry
+from omegaconf import DictConfig
+from transformers import AutoProcessor, AutoTokenizer
 
-__all__ = ["Processor"]
+__all__ = ["PretrainedProcessor"]
 
 IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
 TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast")
@@ -33,8 +35,8 @@ class ProcessorKwargs(ProcessingKwargs, total=False):
     }
 
 
-@registry.register_processor("Processor")
-class Processor(ProcessorMixin):
+@registry.register_processor("PretrainedProcessor")
+class PretrainedProcessor(ProcessorMixin):
     r"""
     Constructs a processor which wraps [`IMG_PROCESSOR_CLASS`] and
     [`TOKENIZER_CLASS`] into a single processor that interits both the image processor and
@@ -64,6 +66,13 @@ class Processor(ProcessorMixin):
 
     def __init__(self, image_processor, tokenizer):
         super().__init__(image_processor, tokenizer)
+
+    @classmethod
+    def from_config(cls, config: DictConfig):
+        image_processor = AutoProcessor.from_pretrained(**config.image_processor)
+        tokenizer = AutoTokenizer.from_pretrained(**config.tokenizer)
+
+        return cls(image_processor=image_processor, tokenizer=tokenizer)
 
     def __call__(
             self,

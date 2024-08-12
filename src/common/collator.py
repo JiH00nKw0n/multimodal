@@ -3,19 +3,22 @@ from dataclasses import dataclass
 
 from builtins import list
 
+import requests
 from transformers import (
     BatchEncoding,
-    ProcessorMixin, PreTrainedTokenizerBase,
 )
 from transformers.data.data_collator import (
-    DataCollatorWithPadding, pad_without_fast_tokenizer_warning,
+    pad_without_fast_tokenizer_warning,
 )
-from typing import Union, List, Dict, Any, Optional
+from typing import Union, List, Dict, Any, Optional, TypeVar
 from collections import defaultdict
-
+from PIL import Image
 from transformers.utils import PaddingStrategy
+from src.utils.utils import is_url
 
 logger = logging.getLogger(__name__)
+
+Processors = TypeVar("Processors", bound="ProcessorMixin")
 
 
 @dataclass
@@ -46,7 +49,7 @@ class DataCollatorWithPadding:
             The type of Tensor to return. Allowable values are "np", "pt" and "tf".
     """
 
-    tokenizer: PreTrainedTokenizerBase
+    tokenizer: Processors
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
     pad_to_multiple_of: Optional[int] = None
@@ -70,8 +73,17 @@ class DataCollatorWithPadding:
         return batch
 
 
+def _get_image(_input: Dict) -> Image.Image:
+    if isinstance(_input['image'], Image.Image):
+        return _input['image']
+    elif is_url(_input['image_url']):
+        return Image.open(requests.get(_input['image_url'], stream=True).raw)
+    else:
+        raise ValueError('Neither `image` == `Image.Image` nor `image_url` is url containing image')
+
+
 @dataclass
-class BaseCollator(DataCollatorWithPadding):
+class BaseCollator:
     """
     Customized collator inherited from DataCollatorWithPadding.
     Data collator that will dynamically pad the inputs received.
@@ -85,17 +97,24 @@ class BaseCollator(DataCollatorWithPadding):
         return_tensors (`str`, *optional*, defaults to `"pt"`):
             The type of Tensor to return. Allowable values are "np", "pt" and "tf".
     """
-    tokenizer: Optional[ProcessorMixin] = None
-    seed: Optional[int] = None
+
+    processor: Processors
+    padding: Union[bool, str, PaddingStrategy] = True
+    max_length: Optional[int] = None
+    pad_to_multiple_of: Optional[int] = None
+    return_tensors: str = "pt"
 
     def __post_init__(self):
         pass
 
-    def __call__(self, inputs: List[Dict[str, Any]]) -> Dict:
-        raise NotImplementedError
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        return self._process_inputs(inputs=inputs)
 
-    def _process_inputs(self, inputs: List[Dict[str, List]]) -> defaultdict[str, list]:
-        raise NotImplementedError
+    def _process_inputs(self, inputs: List[Dict[str, List]]) -> BatchEncoding:
+        processed_dict = defaultdict(list)
+        for _input in inputs:
+            processed_dict['text'].append(_input['text'])
+            processed_dict['image'].append(_get_image(_input))
 
-    def _process(self, input_texts: List[str]) -> Union[BatchEncoding | None]:
-        raise NotImplementedError
+        return self.processor(
+            **dict(**processed_dict, **{'return_tensors': self.return_tensors, 'padding': self.padding}))

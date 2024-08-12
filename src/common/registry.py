@@ -2,6 +2,8 @@ from typing import TypeVar
 
 Processors = TypeVar("Processors", bound="ProcessorMixin")
 Tasks = TypeVar("Tasks", bound="BaseTask")
+Models = TypeVar("Models", bound="PreTrainedModel")
+ModelConfigs = TypeVar("ModelConfigs", bound="PretrainedConfig")
 
 
 class Registry:
@@ -10,6 +12,7 @@ class Registry:
         "task_name_mapping": {},
         "processor_name_mapping": {},
         "model_name_mapping": {},
+        "model_config_name_mapping": {},
         "trainer_name_mapping": {},
     }
 
@@ -60,12 +63,58 @@ class Registry:
         return wrap
 
     @classmethod
+    def register_model(cls, name):
+        def wrap(model_cls) -> Models:
+            from src.models import PreTrainedModel
+
+            assert issubclass(
+                model_cls, PreTrainedModel
+            ), "All tasks must inherit PreTrainedModel"
+
+            if name in cls.mapping["model_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["model_name_mapping"][name]
+                    )
+                )
+            cls.mapping["model_name_mapping"][name] = model_cls
+
+            return model_cls
+
+        return wrap
+
+    @classmethod
+    def register_model_config(cls, name):
+        def wrap(config_cls) -> Tasks:
+            from src.models import PretrainedConfig
+
+            assert issubclass(
+                config_cls, PretrainedConfig
+            ), "All tasks must inherit BaseTasks"
+
+            if name in cls.mapping["model_config_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["model_config_name_mapping"][name]
+                    )
+                )
+            cls.mapping["model_config_name_mapping"][name] = config_cls
+
+            return config_cls
+
+        return wrap
+
+    @classmethod
     def get_builder_class(cls, name):
         return cls.mapping["builder_name_mapping"].get(name, None)
 
     @classmethod
     def get_model_class(cls, name):
         return cls.mapping["model_name_mapping"].get(name, None)
+
+    @classmethod
+    def get_model_config_class(cls, name):
+        return cls.mapping["model_config_name_mapping"].get(name, None)
 
     @classmethod
     def get_task_class(cls, name):

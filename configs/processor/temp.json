@@ -1,8 +1,0 @@
-{
-  "image_processor": {
-    "model_name_or_path": "facebook/dinov2-large"
-  },
-  "tokenizer": {
-    "model_name_or_path": "intfloat/multilingual-e5-large-instruct"
-  }
-}
