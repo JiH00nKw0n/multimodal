@@ -1,5 +1,5 @@
 from typing import Callable, Dict, List, Optional, Tuple, Union, TypeVar
-from dataclasses import asdict
+from .registry import registry
 import torch
 from torch.utils.data import Dataset, RandomSampler
 from transformers.trainer_utils import (
@@ -17,6 +17,7 @@ logger = logging.get_logger(__name__)
 __all__ = ['BaseTrainer']
 
 
+@registry.register_trainer('BaseTrainer')
 class BaseTrainer(Trainer):
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         """

@@ -9,4 +9,4 @@ CUDA_VISIBLE_DEVICES=$DEVICES torchrun \
     --nproc_per_node=$NUM_TRAINERS \
     pytorch/summarization/run_summarization.py \
         --cfg-path '/Users/jihoon/Desktop/personal/multimodal/configs/train/temp.yml' \
-        --wandb_key 'YOUR_WANDB_KEY'
+        --wandb-key 'YOUR_WANDB_KEY'

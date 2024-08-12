@@ -30,7 +30,7 @@ class BaseDatasetBuilder(BaseModel):
     def build_dataset(self):
         if is_main_process():
             self._download_data()
-
+        self._download_data()
         if is_dist_avail_and_initialized():
             dist.barrier()
 

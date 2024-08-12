@@ -67,10 +67,13 @@ class PretrainedProcessor(ProcessorMixin):
     def __init__(self, image_processor, tokenizer):
         super().__init__(image_processor, tokenizer)
 
+    # ToDo: refactoring for more sophisticated method
     @classmethod
-    def from_config(cls, config: DictConfig):
-        image_processor = AutoProcessor.from_pretrained(**config.image_processor)
-        tokenizer = AutoTokenizer.from_pretrained(**config.tokenizer)
+    def from_config(cls, **kwargs):
+        image_processor_config = kwargs.pop("image_processor")
+        tokenizer_config = kwargs.pop("tokenizer")
+        image_processor = AutoProcessor.from_pretrained(**image_processor_config)
+        tokenizer = AutoTokenizer.from_pretrained(**tokenizer_config)
 
         return cls(image_processor=image_processor, tokenizer=tokenizer)
 

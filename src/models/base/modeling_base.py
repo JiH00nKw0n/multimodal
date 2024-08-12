@@ -2,7 +2,7 @@ from typing import Optional, Union, Tuple
 
 import torch
 from torch import nn
-from transformers import PreTrainedModel, AutoModel
+from transformers import PreTrainedModel, AutoModel, XLMRobertaModel
 from transformers.models.clip.modeling_clip import CLIPOutput, clip_loss
 from src.models.base.configuration_base import BaseDualEncoderConfig
 from src.common import registry
@@ -23,13 +23,18 @@ class BaseDualEncoderPretrainedModel(PreTrainedModel):
     _supports_flash_attn_2 = False
 
     def _init_weights(self, module):
-        raise NotImplementedError
-
+        factor = self.config.initializer_factor
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=factor * 0.02)
+        else:
+            print(module)
+            pass
 
 @registry.register_model("BaseDualEncoderModel")
 class BaseDualEncoderModel(BaseDualEncoderPretrainedModel):
     config_class = BaseDualEncoderConfig
 
+    # ToDo: refactor hard coded `torch_dtype`
     def __init__(self, config: BaseDualEncoderConfig):
         super().__init__(config)
 
@@ -38,8 +43,8 @@ class BaseDualEncoderModel(BaseDualEncoderPretrainedModel):
 
         self.projection_dim = config.projection_dim
 
-        self.text_model = AutoModel.from_pretrained(**text_config)
-        self.vision_model = AutoModel.from_pretrained(**vision_config)
+        self.text_model = AutoModel.from_pretrained(**text_config, torch_dtype=torch.float16)
+        self.vision_model = AutoModel.from_pretrained(**vision_config, torch_dtype=torch.float16)
 
         self.text_embed_dim = self.text_model.config.hidden_size
         self.vision_embed_dim = self.vision_model.config.hidden_size

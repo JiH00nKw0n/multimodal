@@ -18,22 +18,24 @@ class BaseTask(BaseModel, extra=Extra.allow):
         model_config = model_config \
             if model_config is not None else self.config.model_config.copy()
 
-        model_cfg_cls = registry.get_model_config_class()
-        model_cls = registry.get_model_class(model_config.architectures[0])
+        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
+        model_cls = registry.get_model_class(model_config.architectures)
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
 
-        model_cfg = model_cfg_cls(**model_config)
+        model_cfg = model_cfg_cls(**model_config.config)
         model = model_cls(model_cfg)
-
         return model
 
     def build_processor(self, processor_config: Optional[Dict] = None):
         processor_config = processor_config \
             if processor_config is not None else self.config.processor_config.copy()
         processor_cls = registry.get_processor_class(processor_config.cls)
-        del processor_config.architecture
-        return processor_cls.from_config(processor_config)
 
-    def build_dataset(self, dataset_config: Optional[Dict] = None) -> Dataset:
+        assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
+
+        return processor_cls.from_config(**processor_config.config)
+
+    def build_datasets(self, dataset_config: Optional[Dict] = None) -> Dataset:
         dataset_config = dataset_config if dataset_config is not None else self.config.dataset_config
 
         datasets = list()
@@ -42,9 +44,8 @@ class BaseTask(BaseModel, extra=Extra.allow):
 
         for config_url in dataset_config:
             dataset_config = OmegaConf.load(config_url)
-
             builder = registry.get_builder_class(dataset_config.builder)(**dataset_config.config)
-            dataset = builder.build_datasets()
+            dataset = builder.build_dataset()
 
             datasets.append(dataset)
 

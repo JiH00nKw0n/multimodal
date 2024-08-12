@@ -34,7 +34,7 @@ class TrainConfig:
 
     @property
     def processor_config(self) -> DictConfig:
-        return OmegaConf.create(self.run)
+        return OmegaConf.create(self.processor)
 
     @property
     def run_config(self) -> DictConfig:

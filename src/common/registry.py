@@ -4,6 +4,8 @@ Processors = TypeVar("Processors", bound="ProcessorMixin")
 Tasks = TypeVar("Tasks", bound="BaseTask")
 Models = TypeVar("Models", bound="PreTrainedModel")
 ModelConfigs = TypeVar("ModelConfigs", bound="PretrainedConfig")
+Trainers = TypeVar("Trainers", bound="Trainer")
+Builders = TypeVar("Builders", bound="BaseDatasetBuilder")
 
 
 class Registry:
@@ -15,10 +17,6 @@ class Registry:
         "model_config_name_mapping": {},
         "trainer_name_mapping": {},
     }
-
-    @classmethod
-    def register_builder(cls, name):
-        raise NotImplementedError
 
     @classmethod
     def register_processor(cls, name):
@@ -35,7 +33,7 @@ class Registry:
                         name, cls.mapping["processor_name_mapping"][name]
                     )
                 )
-            cls.mapping["task_name_mapping"][name] = processor_cls
+            cls.mapping["processor_name_mapping"][name] = processor_cls
 
             return processor_cls
 
@@ -63,9 +61,30 @@ class Registry:
         return wrap
 
     @classmethod
+    def register_trainer(cls, name):
+        def wrap(trainer_cls) -> Trainers:
+            from transformers import Trainer
+
+            assert issubclass(
+                trainer_cls, Trainer
+            ), "All trainer must inherit Trainer"
+
+            if name in cls.mapping["trainer_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["trainer_name_mapping"][name]
+                    )
+                )
+            cls.mapping["trainer_name_mapping"][name] = trainer_cls
+
+            return trainer_cls
+
+        return wrap
+
+    @classmethod
     def register_model(cls, name):
         def wrap(model_cls) -> Models:
-            from src.models import PreTrainedModel
+            from transformers import PreTrainedModel
 
             assert issubclass(
                 model_cls, PreTrainedModel
@@ -86,7 +105,7 @@ class Registry:
     @classmethod
     def register_model_config(cls, name):
         def wrap(config_cls) -> Tasks:
-            from src.models import PretrainedConfig
+            from transformers import PretrainedConfig
 
             assert issubclass(
                 config_cls, PretrainedConfig
@@ -101,6 +120,27 @@ class Registry:
             cls.mapping["model_config_name_mapping"][name] = config_cls
 
             return config_cls
+
+        return wrap
+
+    @classmethod
+    def register_builder(cls, name):
+        def wrap(builder_cls) -> Builders:
+            from src.datasets import BaseDatasetBuilder
+
+            assert issubclass(
+                builder_cls, BaseDatasetBuilder
+            ), "All tasks must inherit BaseTasks"
+
+            if name in cls.mapping["builder_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["builder_name_mapping"][name]
+                    )
+                )
+            cls.mapping["builder_name_mapping"][name] = builder_cls
+
+            return builder_cls
 
         return wrap
 
@@ -126,7 +166,7 @@ class Registry:
 
     @classmethod
     def get_trainer_class(cls, name):
-        return cls.mapping["lr_scheduler_name_mapping"].get(name, None)
+        return cls.mapping["trainer_name_mapping"].get(name, None)
 
     @classmethod
     def list_trainers(cls):
@@ -135,6 +175,10 @@ class Registry:
     @classmethod
     def list_models(cls):
         return sorted(cls.mapping["model_name_mapping"].keys())
+
+    @classmethod
+    def list_model_configs(cls):
+        return sorted(cls.mapping["model_config_name_mapping"].keys())
 
     @classmethod
     def list_tasks(cls):

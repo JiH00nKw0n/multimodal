@@ -16,7 +16,7 @@ import shutil
 import urllib
 import urllib.error
 import urllib.request
-from typing import Optional, Iterator, List
+from typing import Optional, Any, Union
 from urllib.parse import urlparse
 
 import numpy as np
@@ -57,11 +57,17 @@ def load_json(filename):
         return json.load(f)
 
 
+def load_yml(filename):
+    with open(filename, "r") as f:
+        return yaml.safe_load(f)
+
+
 def load_tsv(filename) -> list[list[str]]:
     with open(filename, "r") as f:
         reader = csv.reader(f, delimiter='\t')
         data = [row for row in reader]
     return data
+
 
 # The following are adapted from torchvision and vissl
 # torchvision: https://github.com/pytorch/vision
@@ -176,7 +182,7 @@ def download_url(
         root: str,
         filename: Optional[str] = None,
         md5: Optional[str] = None,
-) -> None:
+) -> Union[str | None | Any]:
     """Download a file from an url and place it in root.
     Args:
         url (str): URL to download file from
@@ -223,6 +229,8 @@ def download_url(
     # check integrity of downloaded file
     if not check_integrity(fpath, md5):
         raise RuntimeError("File not found or corrupted.")
+
+    return fpath
 
 
 def download_and_extract_archive(
