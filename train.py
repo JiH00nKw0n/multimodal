@@ -1,13 +1,12 @@
-import os
 import argparse
 import random
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from transformers import TrainingArguments
 
-from src.utils import get_rank, init_distributed_mode
-from src.common import BaseTrainer, TrainConfig
+from src.utils import get_rank, init_distributed_mode, now
+from src.common import TrainConfig, setup_logger
+import src.tasks as tasks
 import wandb
 
 
@@ -35,27 +34,22 @@ def setup_seeds(config):
 
 
 def main() -> None:
+    # set before init_distributed_mode() to ensure the same job_id shared across all ranks.
+    job_id = now()
 
     args = parse_args()
 
-    init_distributed_mode(args)
+    train_cfg = TrainConfig(**vars(args))
 
+    init_distributed_mode(args)
     setup_seeds(args.seed)
+    setup_logger()
 
     wandb.login(key=args.wandb_key)
 
-    train_cfg = TrainConfig(**args)
+    task = tasks.setup_task(train_cfg)
 
-    model = None
-    processor = None
-    train_dataset = None
-    data_collator = None
-    trainer = BaseTrainer(
-        model=model,
-        args=TrainingArguments(train_cfg.trainer_config),
-        train_dataset=train_dataset,
-        data_collator=data_collator,
-    )
+    trainer = task.build_trainer()
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     wandb.finish()
 
