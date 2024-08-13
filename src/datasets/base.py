@@ -10,9 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDatasetFeatures(BaseModel):
-    img: Sequence = Sequence(Image)
+    image: Sequence = Sequence(Image)
     text: Sequence = Sequence(Value(dtype='string', id=None))
-    img_url: Sequence = Sequence(Value(dtype='string', id=None))
 
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
 
@@ -69,5 +68,5 @@ if __name__ == '__main__':
 
     # add the new data to the dataset
     dataset = dataset.add_item(new_data)
-
+    print(dataset.data)
     print(type(dataset[2]['img_url']))

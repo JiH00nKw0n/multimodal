@@ -68,7 +68,6 @@ def load_tsv(filename) -> list[list[str]]:
         data = [row for row in reader]
     return data
 
-
 # The following are adapted from torchvision and vissl
 # torchvision: https://github.com/pytorch/vision
 # vissl: https://github.com/facebookresearch/vissl/blob/main/vissl/utils/download.py

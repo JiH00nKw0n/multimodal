@@ -17,7 +17,7 @@ from transformers.processing_utils import (
 from transformers.tokenization_utils_base import BatchEncoding, PreTokenizedInput, TextInput
 from src.common import registry
 from omegaconf import DictConfig
-from transformers import AutoProcessor, AutoTokenizer
+from transformers import AutoImageProcessor, AutoTokenizer
 
 __all__ = ["PretrainedProcessor"]
 
@@ -72,7 +72,7 @@ class PretrainedProcessor(ProcessorMixin):
     def from_config(cls, **kwargs):
         image_processor_config = kwargs.pop("image_processor")
         tokenizer_config = kwargs.pop("tokenizer")
-        image_processor = AutoProcessor.from_pretrained(**image_processor_config)
+        image_processor = AutoImageProcessor.from_pretrained(**image_processor_config)
         tokenizer = AutoTokenizer.from_pretrained(**tokenizer_config)
 
         return cls(image_processor=image_processor, tokenizer=tokenizer)
