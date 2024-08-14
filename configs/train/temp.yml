@@ -32,6 +32,7 @@ dataset:
     split: 'train'
 
 trainer:
+  output_dir: '/Users/jihoon/Downloads'
   learning_rate: &learning_rate 1.0e-4
   lr_scheduler_type: 'linear'
   warmup_steps: &warmup_steps 100
