@@ -1,7 +1,7 @@
 from transformers import TrainingArguments
 import logging
 from src.common import TrainConfig, registry, BaseCollator
-from .base import BaseTask
+from src.tasks.base import BaseTask
 from typing import Optional, Dict
 
 __all__ = ["TrainTask"]

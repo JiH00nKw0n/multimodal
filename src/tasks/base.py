@@ -2,7 +2,7 @@ from pydantic import BaseModel, Extra
 from typing import Any, Optional, Dict
 from src.common import registry
 from omegaconf import OmegaConf
-from datasets import concatenate_datasets, Dataset
+from datasets import IterableDataset, interleave_datasets
 
 __all__ = ["BaseTask"]
 
@@ -35,18 +35,22 @@ class BaseTask(BaseModel, extra=Extra.allow):
 
         return processor_cls.from_config(**processor_config.config)
 
-    def build_datasets(self, dataset_config: Optional[Dict] = None) -> Dataset:
+    def build_datasets(self,
+                       dataset_config: Optional[Dict] = None,
+                       shuffle: Optional[bool] = False,
+                       buffer_size: Optional[int] = 10000) -> IterableDataset:
         dataset_config = dataset_config if dataset_config is not None else self.config.dataset_config
 
         datasets = list()
 
         assert len(dataset_config) > 0, "At least one dataset has to be specified."
 
-        for config_url in dataset_config:
-            dataset_config = OmegaConf.load(config_url)
-            builder = registry.get_builder_class(dataset_config.builder)(**dataset_config.config)
+        for builder_cls_name, config in dataset_config.items():
+            builder = registry.get_builder_class(builder_cls_name)(**config)
             dataset = builder.build_dataset()
+            if shuffle:
+                dataset = dataset.shuffle(seed=self.config.run_config.seed, buffer_size=buffer_size)
 
             datasets.append(dataset)
 
-        return concatenate_datasets(datasets)
+        return interleave_datasets(datasets).with_format("torch")

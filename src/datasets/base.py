@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from datasets import Sequence, Value, Features, Image
+from datasets import Sequence, Value, Features, Image, IterableDataset
 from typing import Optional, Dict, Any
 import torch.distributed as dist
 import logging
@@ -26,23 +26,7 @@ class BaseDatasetBuilder(BaseModel):
         if self.features is None:
             self.features = Features(BaseDatasetFeatures())
 
-    def build_dataset(self):
-        if is_main_process():
-            self._download_data()
-        self._download_data()
-        if is_dist_avail_and_initialized():
-            dist.barrier()
-
-            # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
-        logger.info("Building datasets...")
-        self.dataset = self.build()  # dataset['train'/'val'/'test']
-
-        return self.dataset
-
-    def _download_data(self):
-        raise NotImplementedError
-
-    def build(self):
+    def build_dataset(self) -> IterableDataset:
         raise NotImplementedError
 
 

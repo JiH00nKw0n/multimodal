@@ -1,7 +1,6 @@
 from pydantic.dataclasses import dataclass
 from pydantic import ConfigDict, Extra
-from typing import Dict, List
-import yaml
+from typing import Dict
 from omegaconf import OmegaConf, DictConfig
 
 __all__ = ["TrainConfig"]
@@ -16,7 +15,7 @@ class TrainConfig:
     """
     model: Dict
     processor: Dict
-    dataset: List
+    dataset: Dict
     trainer: Dict
     run: Dict
 
@@ -25,7 +24,7 @@ class TrainConfig:
         return OmegaConf.create(self.model)
 
     @property
-    def dataset_config(self) -> List:
+    def dataset_config(self) -> Dict:
         return self.dataset
 
     @property

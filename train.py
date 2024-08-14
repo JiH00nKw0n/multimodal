@@ -11,6 +11,7 @@ from src.common import TrainConfig, setup_logger, CustomWandbCallback
 import src.tasks as tasks
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,8 +26,8 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def setup_seeds(config):
-    seed = config.run_cfg.seed + get_rank()
+def setup_seeds(seed: int) -> None:
+    seed = seed + get_rank()
 
     random.seed(seed)
     np.random.seed(seed)
