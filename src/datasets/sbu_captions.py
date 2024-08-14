@@ -22,9 +22,9 @@ def fetch_single_image(example: Dict, timeout: Optional[float] = None) -> Dict:
         )
         with urllib.request.urlopen(request, timeout=timeout) as req:
             image = PIL.Image.open(io.BytesIO(req.read()))
-        example['image'] = image
+        example['images'] = image
     except Exception:
-        example['image'] = None  # 이미지 로드 실패 시 image에 None을 할당
+        example['images'] = None  # 이미지 로드 실패 시 image에 None을 할당
 
     return example
 
@@ -40,7 +40,7 @@ class SBUCaptionsDatasetBuilder(BaseDatasetBuilder):
         dataset = dataset.map(fetch_single_image)
         dataset = dataset.filter(lambda x: x['image'] is not None)  # image가 None인 데이터 필터링
         dataset = dataset.rename_columns({"caption": 'text'})
-        dataset = dataset.select_columns(['image', 'text'])
+        dataset = dataset.select_columns(['images', 'text'])
         dataset = dataset.cast(self.features)
 
         return dataset

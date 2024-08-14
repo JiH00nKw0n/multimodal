@@ -1,23 +1,45 @@
 import logging
+import numpy as np
+import torch
 from dataclasses import dataclass
-
-from builtins import list
-
-import requests
 from transformers import (
     BatchEncoding,
 )
-from transformers.data.data_collator import (
-    pad_without_fast_tokenizer_warning,
-)
-from typing import Union, List, Dict, Any, Optional, TypeVar
-from collections import defaultdict
+from typing import Union, List, Dict, Optional, TypeVar
 from PIL import Image
 from transformers.utils import PaddingStrategy
 
 logger = logging.getLogger(__name__)
 
 Processors = TypeVar("Processors", bound="ProcessorMixin")
+
+
+def convert_to_rgb(image: Union[Image.Image, np.ndarray, torch.Tensor]) -> torch.Tensor:
+    # PIL.Image.Image 처리
+    if isinstance(image, Image.Image):
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        image = np.array(image)
+
+    # np.ndarray 처리
+    if isinstance(image, np.ndarray):
+        if len(image.shape) == 2:
+            image = np.stack([image] * 3, axis=-1)
+        elif image.shape[-1] == 1:
+            image = np.concatenate([image] * 3, axis=-1)
+        image = torch.from_numpy(image)
+
+    # torch.Tensor 처리
+    if isinstance(image, torch.Tensor):
+        if image.ndimension() == 3 and image.shape[0] == 1:
+            image = image.expand(3, -1, -1)
+        elif image.ndimension() == 2:
+            image = image.unsqueeze(0).expand(3, -1, -1)
+
+        if image.dtype != torch.uint8:
+            image = image.clamp(0, 255).byte()
+
+    return image
 
 
 @dataclass
@@ -46,7 +68,10 @@ class BaseCollator:
         pass
 
     def __call__(self, inputs: List[Dict[str, List]]) -> BatchEncoding:
-        processed_dict = {key: list(map(lambda d: d[key], inputs)) for key in inputs[0].keys()}
+        processed_dict = {
+            key: list(map(lambda d: convert_to_rgb(d[key]) if key == 'images' else d[key], inputs))
+            for key in inputs[0].keys()
+        }
         kwargs = {'return_tensors': self.return_tensors,
                   'padding': self.padding,
                   'pad_to_multiple_of': self.pad_to_multiple_of

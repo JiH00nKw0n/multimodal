@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDatasetFeatures(BaseModel):
-    image: Sequence = Sequence(Image)
-    text: Sequence = Sequence(Value(dtype='string', id=None))
+    images: Image = Image()
+    text: Value = Value(dtype='string', id=None)
 
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
 
