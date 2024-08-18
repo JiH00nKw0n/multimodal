@@ -1,9 +1,11 @@
 from src.models.processing_base import BaseProcessor
+from src.common import registry
 
 IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
 TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast")
 
 
+@registry.register_processor("LiTProcessor")
 class LiTProcessor(BaseProcessor):
     attributes = ["image_processor", "tokenizer"]
     image_processor_class = IMG_PROCESSOR_CLASS

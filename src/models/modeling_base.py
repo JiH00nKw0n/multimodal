@@ -3,7 +3,8 @@ from torch import nn
 from dataclasses import dataclass
 from typing import Optional, Tuple, Any, Union
 from src.models.configuration_base import BaseConfig, BaseTextConfig, BaseVisionConfig
-
+from src.utils import pool
+from src.common import registry
 from transformers import PreTrainedModel, add_start_docstrings, AutoModel
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from transformers.utils import ModelOutput, is_flash_attn_2_available, logging, add_start_docstrings_to_model_forward, \
@@ -14,7 +15,11 @@ if is_flash_attn_2_available():
 
 logger = logging.get_logger(__name__)
 
-__all__ = ["BaseTextModel", "BaseVisionModel", "BaseModel"]
+__all__ = [
+    "BaseTextModel", "BaseVisionModel", "BaseModel", "BaseOutput", "BasePreTrainedModel",
+    "BASE_TEXT_INPUTS_DOCSTRING", "BASE_VISION_INPUTS_DOCSTRING", "BASE_INPUTS_DOCSTRING",
+    "base_loss",
+]
 
 # General docstring
 _CONFIG_FOR_DOC = "CLIPConfig"
@@ -254,6 +259,7 @@ BASE_INPUTS_DOCSTRING = r"""
 """
 
 
+@registry.register_model("BaseTextModel")
 @add_start_docstrings(
     """The text model from Base without any head or projection on top.""",
     BASE_START_DOCSTRING,
@@ -265,7 +271,7 @@ class BaseTextModel(BasePreTrainedModel):
         super().__init__(config)
         # Initialize weights and apply final processing
         super().init_weights()
-        self.text_model = AutoModel.from_config(config)
+        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config)
         super()._backward_compatibility_gradient_checkpointing()
 
     def get_input_embeddings(self) -> nn.Module:
@@ -315,6 +321,7 @@ class BaseTextModel(BasePreTrainedModel):
         )
 
 
+@registry.register_model("BaseVisionModel")
 @add_start_docstrings(
     """The vision model from CLIP without any head or projection on top.""",
     BASE_START_DOCSTRING,
@@ -328,7 +335,7 @@ class BaseVisionModel(BasePreTrainedModel):
         super().__init__(config)
         # Initialize weights and apply final processing
         super().init_weights()
-        self.vision_model = AutoModel.from_config(config)
+        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config)
         super()._backward_compatibility_gradient_checkpointing()
 
     def get_input_embeddings(self) -> nn.Module:
@@ -376,6 +383,7 @@ class BaseVisionModel(BasePreTrainedModel):
         )
 
 
+@registry.register_model("BaseModel")
 @add_start_docstrings(BASE_START_DOCSTRING)
 class BaseModel(BasePreTrainedModel):
     config_class = BaseConfig
@@ -398,6 +406,7 @@ class BaseModel(BasePreTrainedModel):
         text_config = config.text_config
         vision_config = config.vision_config
 
+        self.pool_type = config.pool_type
         self.projection_dim = config.projection_dim
         self.text_embed_dim = text_config.hidden_size
         self.vision_embed_dim = vision_config.hidden_size
@@ -460,7 +469,14 @@ class BaseModel(BasePreTrainedModel):
             return_dict=return_dict,
         )
 
-        pooled_output = text_outputs[1]
+        if self.pool_type is not None:
+            pooled_output = pool(
+                last_hidden_states=text_outputs.last_hidden_states,
+                attention_mask=attention_mask,
+                pool_type=self.pool_type
+            )
+        else:
+            pooled_output = text_outputs[1]
         text_features = self.text_projection(pooled_output)
 
         return text_features
@@ -579,7 +595,14 @@ class BaseModel(BasePreTrainedModel):
         image_embeds = vision_outputs[1]
         image_embeds = self.visual_projection(image_embeds)
 
-        text_embeds = text_outputs[1]
+        if self.pool_type is not None:
+            text_embeds = pool(
+                last_hidden_states=text_outputs.last_hidden_states,
+                attention_mask=attention_mask,
+                pool_type=self.pool_type
+            )
+        else:
+            text_embeds = text_outputs[1]
         text_embeds = self.text_projection(text_embeds)
 
         # normalized features

@@ -216,6 +216,7 @@ class BaseConfig(PretrainedConfig):
         # of confusion!).
         text_config_dict = kwargs.pop("text_config_dict", None)
         vision_config_dict = kwargs.pop("vision_config_dict", None)
+        pool_type = kwargs.pop("pool_type", None)
 
         super().__init__(**kwargs)
 
@@ -290,6 +291,7 @@ class BaseConfig(PretrainedConfig):
         self.text_config = BaseTextConfig(**text_config)
         self.vision_config = BaseVisionConfig(**vision_config)
 
+        self.pool_type = pool_type
         self.projection_dim = projection_dim
         self.logit_scale_init_value = logit_scale_init_value
         self.initializer_factor = 1.0

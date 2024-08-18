@@ -22,13 +22,14 @@ class LiTVisionConfig(BaseVisionConfig):
 
 class LiTConfig(BaseConfig):
     def __init__(
-            self, text_config=None, vision_config=None, projection_dim=512, logit_scale_init_value=2.6592, **kwargs
+            self, text_config=None, vision_config=None, logit_scale_init_value=2.6592, **kwargs
     ):
         # If `_config_dict` exist, we use them for the backward compatibility.
         # We pop out these 2 attributes before calling `super().__init__` to avoid them being saved (which causes a lot
         # of confusion!).
         text_config_dict = kwargs.pop("text_config_dict", None)
         vision_config_dict = kwargs.pop("vision_config_dict", None)
+        pool_type = kwargs.pop("pool_type", None)
 
         super().__init__(**kwargs)
 
@@ -103,6 +104,6 @@ class LiTConfig(BaseConfig):
         self.text_config = LiTTextConfig(**text_config)
         self.vision_config = LiTVisionConfig(**vision_config)
 
-        self.projection_dim = projection_dim
+        self.pool_type = pool_type
         self.logit_scale_init_value = logit_scale_init_value
         self.initializer_factor = 1.0
