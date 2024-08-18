@@ -1,4 +1,4 @@
 from transformers import CLIPProcessor, AlignProcessor
-from .processor import *
+from src.models.processing_base import *
 
 __all__ = ["PretrainedProcessor", "CLIPProcessor", "AlignProcessor"]

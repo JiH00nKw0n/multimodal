@@ -16,16 +16,15 @@ from transformers.processing_utils import (
 )
 from transformers.tokenization_utils_base import BatchEncoding, PreTokenizedInput, TextInput
 from src.common import registry
-from omegaconf import DictConfig
 from transformers import AutoImageProcessor, AutoTokenizer
 
-__all__ = ["PretrainedProcessor"]
+__all__ = ["BaseProcessor"]
 
 IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
 TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast")
 
 
-class ProcessorKwargs(ProcessingKwargs, total=False):
+class BaseProcessorKwargs(ProcessingKwargs, total=False):
     # see processing_utils.ProcessingKwargs documentation for usage.
     _defaults = {
         "text_kwargs": {
@@ -35,8 +34,8 @@ class ProcessorKwargs(ProcessingKwargs, total=False):
     }
 
 
-@registry.register_processor("PretrainedProcessor")
-class PretrainedProcessor(ProcessorMixin):
+@registry.register_processor("BaseProcessor")
+class BaseProcessor(ProcessorMixin):
     r"""
     Constructs a processor which wraps [`IMG_PROCESSOR_CLASS`] and
     [`TOKENIZER_CLASS`] into a single processor that interits both the image processor and
@@ -83,7 +82,7 @@ class PretrainedProcessor(ProcessorMixin):
             images: ImageInput = None,
             audio=None,
             videos=None,
-            **kwargs: Unpack[ProcessorKwargs],
+            **kwargs: Unpack[BaseProcessorKwargs],
     ) -> BatchEncoding:
         """
         Main method to prepare text(s) and image(s) to be fed as input to the model. This method forwards the `text`
@@ -118,7 +117,7 @@ class PretrainedProcessor(ProcessorMixin):
         if text is None and images is None:
             raise ValueError("You must specify either text or images.")
         output_kwargs = self._merge_kwargs(
-            ProcessorKwargs,
+            BaseProcessorKwargs,
             tokenizer_init_kwargs=self.tokenizer.init_kwargs,
             **kwargs,
         )
