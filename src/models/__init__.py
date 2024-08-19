@@ -1,5 +1,6 @@
 from src.models.configuration_base import *
 from src.models.modeling_base import *
+from src.models.fusemix import *
 from src.models.processing_base import BaseProcessor
 from src.common.registry import registry
 
@@ -10,7 +11,12 @@ __all__ = [
     "BaseVisionModel",
     "BaseConfig",
     "BaseTextConfig",
-    "BaseVisionConfig"
+    "BaseVisionConfig",
+    "FuseMixConfig",
+    "FuseMixTextConfig",
+    "FuseMixVisionConfig",
+    "FuseMixModel",
+    "FuseMixProcessor",
 ]
 
 # registry.register_model("CLIPModel")(CLIPModel)

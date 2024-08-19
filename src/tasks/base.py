@@ -38,7 +38,7 @@ class BaseTask(BaseModel, extra=Extra.forbid):
     def build_processor(self, processor_config: Optional[Dict] = None):
         processor_config = processor_config \
             if processor_config is not None else self.config.processor_config.copy()
-        processor_cls = registry.get_processor_class(processor_config.cls)
+        processor_cls = registry.get_processor_class(processor_config.processor_cls)
 
         assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
 

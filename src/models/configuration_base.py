@@ -51,16 +51,11 @@ class BaseTextConfig(PretrainedConfig):
     >>> configuration = model.config
     ```"""
 
-    def __init__(
-            self,
-            pretrained_model_name_or_path: Union[str, os.PathLike],
-            **kwargs,
-    ):
-        config_dict = AutoConfig.from_pretrained(pretrained_model_name_or_path, **kwargs)
+    def __init__(self, **kwargs):
         parent_instance = super(BaseTextConfig, self)
 
         init_kwargs = {}
-        for key, value in config_dict.items():
+        for key, value in kwargs.items():
             if hasattr(parent_instance, key):
                 init_kwargs[key] = value
             else:
@@ -133,16 +128,11 @@ class BaseVisionConfig(PretrainedConfig):
     >>> configuration = model.config
     ```"""
 
-    def __init__(
-            self,
-            pretrained_model_name_or_path: Union[str, os.PathLike],
-            **kwargs,
-    ):
-        config_dict = AutoConfig.from_pretrained(pretrained_model_name_or_path, **kwargs)
+    def __init__(self, **kwargs):
         parent_instance = super(BaseVisionConfig, self)
 
         init_kwargs = {}
-        for key, value in config_dict.items():
+        for key, value in kwargs.items():
             if hasattr(parent_instance, key):
                 init_kwargs[key] = value
             else:
@@ -287,10 +277,10 @@ class BaseConfig(PretrainedConfig):
             # Update all values in `vision_config` with the ones in `_vision_config_dict`.
             vision_config.update(_vision_config_dict)
 
-        if text_config is None:
+        if text_config is None and text_config_dict:
             raise ValueError("One of text_config or text_config_dict must not `None`.")
 
-        if vision_config is None:
+        if vision_config is None and vision_config_dict:
             raise ValueError("One of vision_config or vision_config_dict must not `None`.")
 
         self.text_config = BaseTextConfig(**text_config)
@@ -320,10 +310,8 @@ class BaseConfig(PretrainedConfig):
             vision_pretrained_model_name_or_path: Union[str, os.PathLike],
             **kwargs
     ):
-        from transformers import AutoConfig
-
-        configs_input = dict({
-            'text_config': AutoConfig.from_pretrained(text_pretrained_model_name_or_path).to_dict(),
-            'vision_config': AutoConfig.from_pretrained(vision_pretrained_model_name_or_path).to_dict(),
-        }, **kwargs)
-        return cls.from_text_vision_configs(**configs_input)
+        cls(
+            text_config=AutoConfig.from_pretrained(text_pretrained_model_name_or_path).to_dict(),
+            vision_config=AutoConfig.from_pretrained(vision_pretrained_model_name_or_path).to_dict(),
+            **kwargs
+        )

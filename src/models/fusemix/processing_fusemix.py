@@ -3,6 +3,7 @@ from src.common import registry
 
 IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
 TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast")
+__all__ = ["FuseMixProcessor"]
 
 
 @registry.register_processor("FuseMixProcessor")

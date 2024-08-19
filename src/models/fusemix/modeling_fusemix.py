@@ -2,7 +2,7 @@ from typing import Optional, Union, Tuple
 
 import torch
 from torch import nn
-from transformers import add_start_docstrings
+from transformers import add_start_docstrings, AutoModel
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from transformers.utils import add_start_docstrings_to_model_forward, replace_return_docstrings
 
@@ -16,6 +16,7 @@ from src.models.configuration_base import BaseConfig
 from src.models.fusemix.configuration_fusemix import (
     FuseMixTextConfig, FuseMixVisionConfig, FuseMixConfig
 )
+__all__ = ["FuseMixTextConfig", "FuseMixVisionConfig", "FuseMixModel"]
 
 
 class FuseMixMLP(nn.Module):

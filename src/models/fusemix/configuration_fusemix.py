@@ -7,19 +7,20 @@ from src.models.configuration_base import (
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
+__all__ = ["FuseMixTextConfig", "FuseMixVisionConfig", "FuseMixConfig"]
 
 
 @registry.register_model_config("FuseMixTextConfig")
 class FuseMixTextConfig(BaseTextConfig):
 
-    def __init__(self, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs):
-        super().__init__(pretrained_model_name_or_path, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
 @registry.register_model_config("FuseMixVisionConfig")
 class FuseMixVisionConfig(BaseVisionConfig):
-    def __init__(self, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs):
-        super().__init__(pretrained_model_name_or_path, **kwargs)
+    def __init__(sel, **kwargs):
+        super().__init__(**kwargs)
 
 
 @registry.register_model_config("FuseMixConfig")
@@ -42,7 +43,7 @@ class FuseMixConfig(BaseConfig):
         text_config_dict = kwargs.pop("text_config_dict", None)
         vision_config_dict = kwargs.pop("vision_config_dict", None)
 
-        super().__init__(**kwargs)
+        super().__init__(text_config=text_config, vision_config=vision_config, **kwargs)
 
         # Instead of simply assigning `[text|vision]_config_dict` to `[text|vision]_config`, we use the values in
         # `[text|vision]_config_dict` to update the values in `[text|vision]_config`. The values should be same in most

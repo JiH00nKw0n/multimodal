@@ -73,8 +73,8 @@ class BaseProcessor(ProcessorMixin):
             text_pretrained_model_name_or_path: Union[str, os.PathLike],
             vision_pretrained_model_name_or_path: Union[str, os.PathLike],
     ):
-        image_processor = AutoImageProcessor.from_pretrained(text_pretrained_model_name_or_path)
-        tokenizer = AutoTokenizer.from_pretrained(vision_pretrained_model_name_or_path)
+        tokenizer = AutoTokenizer.from_pretrained(text_pretrained_model_name_or_path)
+        image_processor = AutoImageProcessor.from_pretrained(vision_pretrained_model_name_or_path)
 
         return cls(image_processor=image_processor, tokenizer=tokenizer)
 
