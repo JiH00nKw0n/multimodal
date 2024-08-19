@@ -1,4 +1,6 @@
 from typing import Optional
+import torch
+
 from src.common.registry import registry
 from src.models.configuration_base import (
     BaseConfig
@@ -25,6 +27,9 @@ class FuseMixConfig(BaseConfig):
             expansion_factor: Optional[int] = 4,
             **kwargs
     ):
+        if kwargs.get('torch_dtype') == 'fp16':
+            kwargs['torch_dtype'] = torch.float16
+
         super().__init__(**kwargs)
 
         if text_pretrained_model_name_or_path is None:
