@@ -1,10 +1,9 @@
 from typing import Optional
 import torch
+from transformers import PretrainedConfig
 
 from src.common.registry import registry
-from src.models.configuration_base import (
-    BaseConfig
-)
+
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
@@ -12,7 +11,7 @@ __all__ = ["FuseMixConfig"]
 
 
 @registry.register_model_config("FuseMixConfig")
-class FuseMixConfig(BaseConfig):
+class FuseMixConfig(PretrainedConfig):
     model_type = "fusemix"
 
     def __init__(
@@ -32,17 +31,11 @@ class FuseMixConfig(BaseConfig):
 
         super().__init__(**kwargs)
 
-        if text_pretrained_model_name_or_path is None:
-            raise ValueError()
-
-        if vision_pretrained_model_name_or_path is None:
-            raise ValueError()
-
         self.text_config = dict(
-            {"pretrained_name_or_path": text_pretrained_model_name_or_path}, **kwargs
+            {"pretrained_model_name_or_path": text_pretrained_model_name_or_path}, **kwargs
         )
         self.vision_config = dict(
-            {"pretrained_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
+            {"pretrained_model_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
         )
 
         self.pool_type = pool_type

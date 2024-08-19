@@ -33,17 +33,11 @@ class BaseConfig(PretrainedConfig):
             kwargs['torch_dtype'] = torch.float16
         super().__init__(**kwargs)
 
-        if text_pretrained_model_name_or_path is None:
-            raise ValueError()
-
-        if vision_pretrained_model_name_or_path is None:
-            raise ValueError()
-
         self.text_config = dict(
-            {"pretrained_name_or_path": text_pretrained_model_name_or_path}, **kwargs
+            {"pretrained_model_name_or_path": text_pretrained_model_name_or_path}, **kwargs
         )
         self.vision_config = dict(
-            {"pretrained_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
+            {"pretrained_model_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
         )
 
         self.pool_type = pool_type

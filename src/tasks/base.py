@@ -24,14 +24,8 @@ class BaseTask(BaseModel, extra=Extra.forbid):
         model_cls = registry.get_model_class(model_config.model_cls)
         assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
 
-        model_cfg = model_cfg_cls.from_text_vision_pretrained(**model_config.config)
+        model_cfg = model_cfg_cls(**model_config.config)
         model = model_cls(model_cfg)
-
-        logger.debug(f"{repr(model)}")
-        trainable_params, all_param = model.get_nb_trainable_parameters()
-
-        logger.info(
-            f'ALL PARAM: {all_param} / TRAINABLE PARAM: {trainable_params} / RATIO: {trainable_params / all_param * 100}%')
 
         return model
 

@@ -44,6 +44,17 @@ def main() -> None:
 
     args = parse_args()
 
+    # 파일 핸들러 생성
+    file_handler = logging.FileHandler(f'/mnt/working/multimodal/.log/fusemix_{job_id}.log/')
+    file_handler.setLevel(logging.DEBUG)
+
+    # 로그 메시지 포맷 설정
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # 핸들러를 로거에 추가
+    logger.addHandler(file_handler)
+
     train_cfg = TrainConfig(**load_yml(args.cfg_path))
     init_distributed_mode(args)
     setup_seeds(train_cfg.run_config.seed)
