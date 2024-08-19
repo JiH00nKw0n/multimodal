@@ -1,9 +1,11 @@
+import logging
 from pydantic import BaseModel, Extra
 from typing import Any, Optional, Dict
 from src.common import registry
-from omegaconf import OmegaConf
+from transformers import AutoConfig
 from datasets import IterableDataset, interleave_datasets
 
+logger = logging.getLogger(__name__)
 __all__ = ["BaseTask"]
 
 
@@ -19,11 +21,18 @@ class BaseTask(BaseModel, extra=Extra.allow):
             if model_config is not None else self.config.model_config.copy()
 
         model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
-        model_cls = registry.get_model_class(model_config.architectures)
+        model_cls = registry.get_model_class(model_config.model_cls)
         assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
 
-        model_cfg = model_cfg_cls(**model_config.config)
+        model_cfg = model_cfg_cls.from_text_vision_pretrained(**model_config.config)
         model = model_cls(model_cfg)
+
+        logger.debug(f"{repr(model)}")
+        trainable_params, all_param = model.get_nb_trainable_parameters()
+
+        logger.info(
+            f'ALL PARAM: {all_param} / TRAINABLE PARAM: {trainable_params} / RATIO: {trainable_params / all_param * 100}%')
+
         return model
 
     def build_processor(self, processor_config: Optional[Dict] = None):
@@ -33,7 +42,7 @@ class BaseTask(BaseModel, extra=Extra.allow):
 
         assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
 
-        return processor_cls.from_config(**processor_config.config)
+        return processor_cls.from_text_vision_pretrained(**processor_config.config)
 
     def build_datasets(self,
                        dataset_config: Optional[Dict] = None,

@@ -267,11 +267,11 @@ BASE_INPUTS_DOCSTRING = r"""
 class BaseTextModel(BasePreTrainedModel):
     config_class = BaseTextConfig
 
-    def __init__(self, config: BaseTextConfig):
+    def __init__(self, config: BaseTextConfig, **kwargs):
         super().__init__(config)
         # Initialize weights and apply final processing
         super().init_weights()
-        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config)
+        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config, **kwargs)
         super()._backward_compatibility_gradient_checkpointing()
 
     def get_input_embeddings(self) -> nn.Module:
@@ -329,13 +329,12 @@ class BaseTextModel(BasePreTrainedModel):
 class BaseVisionModel(BasePreTrainedModel):
     config_class = BaseVisionConfig
     main_input_name = "pixel_values"
-    _no_split_modules = ["CLIPEncoderLayer"]
 
-    def __init__(self, config: BaseVisionConfig):
+    def __init__(self, config: BaseVisionConfig, **kwargs):
         super().__init__(config)
         # Initialize weights and apply final processing
         super().init_weights()
-        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config)
+        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config, **kwargs)
         super()._backward_compatibility_gradient_checkpointing()
 
     def get_input_embeddings(self) -> nn.Module:
@@ -418,11 +417,9 @@ class BaseModel(BasePreTrainedModel):
         # Initialize weights and apply final processing
         super().init_weights()
 
-        text_model = BaseTextModel._from_config(text_config, attn_implementation=config._attn_implementation)
-        self.text_model = text_model.text_model
+        self.text_model = BaseTextModel(text_config, attn_implementation=config._attn_implementation)
 
-        vision_model = BaseVisionModel._from_config(vision_config, attn_implementation=config._attn_implementation)
-        self.vision_model = vision_model.vision_model
+        self.vision_model = BaseVisionModel(vision_config, attn_implementation=config._attn_implementation)
 
         super()._backward_compatibility_gradient_checkpointing()
 

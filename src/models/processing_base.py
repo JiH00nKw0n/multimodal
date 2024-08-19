@@ -1,7 +1,7 @@
 """
 Image/Text processor class
 """
-
+import os
 from typing import List, Union
 
 try:
@@ -68,11 +68,13 @@ class BaseProcessor(ProcessorMixin):
 
     # ToDo: refactoring for more sophisticated method
     @classmethod
-    def from_config(cls, **kwargs):
-        image_processor_config = kwargs.pop("image_processor")
-        tokenizer_config = kwargs.pop("tokenizer")
-        image_processor = AutoImageProcessor.from_pretrained(**image_processor_config)
-        tokenizer = AutoTokenizer.from_pretrained(**tokenizer_config)
+    def from_text_vision_pretrained(
+            cls,
+            text_pretrained_model_name_or_path: Union[str, os.PathLike],
+            vision_pretrained_model_name_or_path: Union[str, os.PathLike],
+    ):
+        image_processor = AutoImageProcessor.from_pretrained(text_pretrained_model_name_or_path)
+        tokenizer = AutoTokenizer.from_pretrained(vision_pretrained_model_name_or_path)
 
         return cls(image_processor=image_processor, tokenizer=tokenizer)
 

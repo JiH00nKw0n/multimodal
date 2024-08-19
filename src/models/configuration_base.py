@@ -1,7 +1,7 @@
 """Base model configuration"""
 
 import os
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Union, Dict
 
 if TYPE_CHECKING:
     from transformers.processing_utils import ProcessorMixin
@@ -209,7 +209,12 @@ class BaseConfig(PretrainedConfig):
     model_type = "base"
 
     def __init__(
-            self, text_config=None, vision_config=None, projection_dim=512, logit_scale_init_value=2.6592, **kwargs
+            self,
+            text_config: Optional[Dict] = None,
+            vision_config: Optional[Dict] = None,
+            projection_dim: Optional[int] = 512,
+            logit_scale_init_value: Optional[float] = 2.6592,
+            **kwargs
     ):
         # If `_config_dict` exist, we use them for the backward compatibility.
         # We pop out these 2 attributes before calling `super().__init__` to avoid them being saved (which causes a lot
@@ -297,7 +302,7 @@ class BaseConfig(PretrainedConfig):
         self.initializer_factor = 1.0
 
     @classmethod
-    def from_text_vision_configs(cls, text_config: BaseTextConfig, vision_config: BaseVisionConfig, **kwargs):
+    def from_text_vision_configs(cls, text_config: PretrainedConfig, vision_config: PretrainedConfig, **kwargs):
         r"""
         Instantiate a [`BaseConfig`] (or a derived class) from Base text model configuration and Base vision model
         configuration.
@@ -308,3 +313,17 @@ class BaseConfig(PretrainedConfig):
 
         return cls(text_config=text_config.to_dict(), vision_config=vision_config.to_dict(), **kwargs)
 
+    @classmethod
+    def from_text_vision_pretrained(
+            cls,
+            text_pretrained_model_name_or_path: Union[str, os.PathLike],
+            vision_pretrained_model_name_or_path: Union[str, os.PathLike],
+            **kwargs
+    ):
+        from transformers import AutoConfig
+
+        configs_input = dict({
+            'text_config': AutoConfig.from_pretrained(text_pretrained_model_name_or_path).to_dict(),
+            'vision_config': AutoConfig.from_pretrained(vision_pretrained_model_name_or_path).to_dict(),
+        }, **kwargs)
+        return cls.from_text_vision_configs(**configs_input)

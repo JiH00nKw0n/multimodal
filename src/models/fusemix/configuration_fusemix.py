@@ -9,27 +9,31 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-@registry.register_model_config("LiTTextConfig")
-class LiTTextConfig(BaseTextConfig):
+@registry.register_model_config("FuseMixTextConfig")
+class FuseMixTextConfig(BaseTextConfig):
 
     def __init__(self, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs):
         super().__init__(pretrained_model_name_or_path, **kwargs)
 
 
-@registry.register_model_config("LiTVisionConfig")
-class LiTVisionConfig(BaseVisionConfig):
+@registry.register_model_config("FuseMixVisionConfig")
+class FuseMixVisionConfig(BaseVisionConfig):
     def __init__(self, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs):
         super().__init__(pretrained_model_name_or_path, **kwargs)
 
 
-@registry.register_model_config("LiTConfig")
-class LiTConfig(BaseConfig):
+@registry.register_model_config("FuseMixConfig")
+class FuseMixConfig(BaseConfig):
     def __init__(
             self,
             text_config: Optional[Dict] = None,
             vision_config: Optional[Dict] = None,
-            logit_scale_init_value: Optional[int] = 2.6592,
+            projection_dim: Optional[int] = 512,
+            logit_scale_init_value: Optional[int] = 0.07,
             pool_type: Optional[str] = None,
+            drop_out: Optional[float] = 0.0,
+            num_fusion_layer: Optional[int] = 4,
+            expansion_factor: Optional[int] = 4,
             **kwargs
     ):
         # If `_config_dict` exist, we use them for the backward compatibility.
@@ -48,7 +52,7 @@ class LiTConfig(BaseConfig):
                 text_config = {}
 
             # This is the complete result when using `text_config_dict`.
-            _text_config_dict = LiTTextConfig(**text_config_dict).to_dict()
+            _text_config_dict = FuseMixTextConfig(**text_config_dict).to_dict()
 
             # Give a warning if the values exist in both `_text_config_dict` and `text_config` but being different.
             for key, value in _text_config_dict.items():
@@ -75,7 +79,7 @@ class LiTConfig(BaseConfig):
                 vision_config = {}
 
             # This is the complete result when using `vision_config_dict`.
-            _vision_config_dict = LiTVisionConfig(**vision_config_dict).to_dict()
+            _vision_config_dict = FuseMixVisionConfig(**vision_config_dict).to_dict()
             # convert keys to string instead of integer
             if "id2label" in _vision_config_dict:
                 _vision_config_dict["id2label"] = {
@@ -108,9 +112,13 @@ class LiTConfig(BaseConfig):
         if vision_config is None:
             raise ValueError("One of vision_config or vision_config_dict must not `None`.")
 
-        self.text_config = LiTTextConfig(**text_config)
-        self.vision_config = LiTVisionConfig(**vision_config)
+        self.text_config = FuseMixTextConfig(**text_config)
+        self.vision_config = FuseMixVisionConfig(**vision_config)
 
+        self.projection_dim = projection_dim
         self.pool_type = pool_type
+        self.drop_out = drop_out
+        self.num_fusion_layer = num_fusion_layer
+        self.expansion_factor = expansion_factor
         self.logit_scale_init_value = logit_scale_init_value
         self.initializer_factor = 1.0
