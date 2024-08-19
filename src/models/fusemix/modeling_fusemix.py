@@ -2,21 +2,21 @@ from typing import Optional, Union, Tuple
 
 import torch
 from torch import nn
-from transformers import add_start_docstrings, AutoModel
+from transformers import add_start_docstrings, AutoModel, PreTrainedModel, AutoConfig
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from transformers.utils import add_start_docstrings_to_model_forward, replace_return_docstrings
 
 from src.utils import pool
 from src.models.modeling_base import (
-    BaseOutput, BasePreTrainedModel, BaseTextModel, BaseVisionModel, base_loss,
+    BaseOutput, base_loss,
     BASE_INPUTS_DOCSTRING, BASE_TEXT_INPUTS_DOCSTRING, BASE_VISION_INPUTS_DOCSTRING
 )
 from src.common import registry
 from src.models.configuration_base import BaseConfig
 from src.models.fusemix.configuration_fusemix import (
-    FuseMixTextConfig, FuseMixVisionConfig, FuseMixConfig
+    FuseMixConfig
 )
-__all__ = ["FuseMixTextConfig", "FuseMixVisionConfig", "FuseMixModel"]
+__all__ = ["FuseMixModel"]
 
 
 class FuseMixMLP(nn.Module):
@@ -69,7 +69,7 @@ class FuseMixLayer(nn.Module):
         return _hidden_states
 
 
-class FuseMixPreTrainedModel(BasePreTrainedModel):
+class FuseMixPreTrainedModel(PreTrainedModel):
     config_class = FuseMixConfig
     base_model_prefix = "fusemix"
 
@@ -98,72 +98,6 @@ FUSEMIX_START_DOCSTRING = r"""
 """
 
 
-@registry.register_model("FuseMixTextModel")
-@add_start_docstrings(
-    """The text model from FuseMix without any head or projection on top.""",
-    FUSEMIX_START_DOCSTRING,
-)
-class FuseMixTextModel(FuseMixPreTrainedModel):
-    config_class = FuseMixTextConfig
-
-    def __init__(self, config: FuseMixTextConfig, **kwargs):
-        super().__init__(config, **kwargs)
-
-    @add_start_docstrings_to_model_forward(BASE_TEXT_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=FuseMixTextConfig)
-    def forward(
-            self,
-            input_ids: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        return self.text_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-
-@registry.register_model("FuseMixVisionModel")
-@add_start_docstrings(
-    """The vision model from FuseMix without any head or projection on top.""",
-    FUSEMIX_START_DOCSTRING,
-)
-class FuseMixVisionModel(FuseMixPreTrainedModel):
-    config_class = FuseMixVisionConfig
-    main_input_name = "pixel_values"
-    _no_split_modules = ["CLIPEncoderLayer"]
-
-    def __init__(self, config: FuseMixVisionConfig, **kwargs):
-        super().__init__(config, **kwargs)
-
-    @add_start_docstrings_to_model_forward(BASE_VISION_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=FuseMixVisionConfig)
-    def forward(
-            self,
-            pixel_values: Optional[torch.FloatTensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        return self.vision_model(
-            pixel_values=pixel_values,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-
 @registry.register_model("FuseMixModel")
 @add_start_docstrings(FUSEMIX_START_DOCSTRING)
 class FuseMixModel(FuseMixPreTrainedModel):
@@ -172,24 +106,13 @@ class FuseMixModel(FuseMixPreTrainedModel):
     def __init__(self, config: FuseMixConfig):
         super().__init__(config)
 
-        if not isinstance(config.text_config, FuseMixTextConfig):
-            raise TypeError(
-                "config.text_config is expected to be of type CLIPTextConfig but is of type"
-                f" {type(config.text_config)}."
-            )
-
-        if not isinstance(config.vision_config, FuseMixVisionConfig):
-            raise TypeError(
-                "config.vision_config is expected to be of type CLIPVisionConfig but is of type"
-                f" {type(config.vision_config)}."
-            )
-
-        text_config = config.text_config
-        vision_config = config.vision_config
+        text_config = AutoConfig.from_pretrained(**config.text_config)
+        vision_config = AutoConfig.from_pretrained(**config.vision_config)
 
         self.pool_type = config.pool_type
-        self.vision_embed_dim = vision_config.hidden_size
+        self.projection_dim = config.projection_dim
         self.text_embed_dim = text_config.hidden_size
+        self.vision_embed_dim = vision_config.hidden_size
 
         self.text_projection = FuseMixLayer(self.text_embed_dim, config)
         self.vision_projection = FuseMixLayer(self.vision_embed_dim, config)
@@ -199,11 +122,9 @@ class FuseMixModel(FuseMixPreTrainedModel):
         # Initialize weights and apply final processing
         super().init_weights()
 
-        text_model = FuseMixTextModel._from_config(text_config, attn_implementation=config._attn_implementation)
-        self.text_model = text_model.text_model
+        self.text_model = AutoModel.from_pretrained(**config.text_config)
 
-        vision_model = FuseMixVisionModel._from_config(vision_config, attn_implementation=config._attn_implementation)
-        self.vision_model = vision_model.vision_model
+        self.vision_model = AutoModel.from_pretrained(**config.vision_config)
 
         super()._backward_compatibility_gradient_checkpointing()
 
@@ -220,6 +141,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
             self,
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
+            token_type_ids: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.Tensor] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
@@ -235,6 +157,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
             position_ids=position_ids,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -243,7 +166,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
 
         if self.pool_type is not None:
             pooled_output = pool(
-                last_hidden_states=text_outputs.last_hidden_states,
+                last_hidden_state=text_outputs.last_hidden_state,
                 attention_mask=attention_mask,
                 pool_type=self.pool_type
             )
@@ -287,6 +210,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
             input_ids: Optional[torch.LongTensor] = None,
             pixel_values: Optional[torch.FloatTensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
+            token_type_ids: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
             return_loss: Optional[bool] = None,
             output_attentions: Optional[bool] = None,
@@ -311,6 +235,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
             position_ids=position_ids,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -323,7 +248,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
 
         if self.pool_type is not None:
             text_embeds = pool(
-                last_hidden_states=text_outputs.last_hidden_states,
+                last_hidden_state=text_outputs.last_hidden_state,
                 attention_mask=attention_mask,
                 pool_type=self.pool_type
             ).detach()

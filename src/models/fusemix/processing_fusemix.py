@@ -1,8 +1,8 @@
 from src.models.processing_base import BaseProcessor
 from src.common import registry
 
-IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
-TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast")
+IMG_PROCESSOR_CLASS = ("BitImageProcessor", "ViTImageProcessor")
+TOKENIZER_CLASS = ("BertTokenizer", "BertTokenizerFast")
 __all__ = ["FuseMixProcessor"]
 
 

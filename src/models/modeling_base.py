@@ -2,10 +2,10 @@ import torch
 from torch import nn
 from dataclasses import dataclass
 from typing import Optional, Tuple, Any, Union
-from src.models.configuration_base import BaseConfig, BaseTextConfig, BaseVisionConfig
+from src.models.configuration_base import BaseConfig
 from src.utils import pool
 from src.common import registry
-from transformers import PreTrainedModel, add_start_docstrings, AutoModel
+from transformers import PreTrainedModel, add_start_docstrings, AutoModel, AutoConfig
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from transformers.utils import ModelOutput, is_flash_attn_2_available, logging, add_start_docstrings_to_model_forward, \
     replace_return_docstrings
@@ -16,16 +16,16 @@ if is_flash_attn_2_available():
 logger = logging.get_logger(__name__)
 
 __all__ = [
-    "BaseTextModel", "BaseVisionModel", "BaseModel", "BaseOutput", "BasePreTrainedModel",
+    "BaseModel", "BaseOutput", "BasePreTrainedModel",
     "BASE_TEXT_INPUTS_DOCSTRING", "BASE_VISION_INPUTS_DOCSTRING", "BASE_INPUTS_DOCSTRING",
     "base_loss",
 ]
 
-# General docstring
-_CONFIG_FOR_DOC = "CLIPConfig"
+# ToDo: General docstring
+_CONFIG_FOR_DOC = "BaseConfig"
 _CHECKPOINT_FOR_DOC = "openai/clip-vit-base-patch32"
 
-# Image classification docstring
+# ToDo: Image classification docstring
 _IMAGE_CLASS_CHECKPOINT = "openai/clip-vit-base-patch32"
 _IMAGE_CLASS_EXPECTED_OUTPUT = "LABEL_0"
 
@@ -40,66 +40,6 @@ def base_loss(similarity: torch.Tensor) -> torch.Tensor:
     caption_loss = contrastive_loss(similarity)
     image_loss = contrastive_loss(similarity.t())
     return (caption_loss + image_loss) / 2.0
-
-
-# Copied from transformers.models.clip.modeling_clip.CLIPVisionModelOutput with CLIP -> Base
-@dataclass
-class BaseVisionModelOutput(ModelOutput):
-    """
-    Base class for vision model's outputs that also contains image embeddings of the pooling of the last hidden states.
-
-    Args:
-        image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim)` *optional* returned when model is initialized with `with_projection=True`):
-            The image embeddings obtained by applying the projection layer to the pooler_output.
-        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-            Sequence of hidden-states at the output of the last layer of the model.
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
-            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
-
-            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    image_embeds: Optional[torch.FloatTensor] = None
-    last_hidden_state: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
-
-
-# Copied from transformers.models.clip.modeling_clip.CLIPTextModelOutput with CLIP -> Base
-@dataclass
-class BaseTextModelOutput(ModelOutput):
-    """
-    Base class for text model's outputs that also contains a pooling of the last hidden states.
-
-    Args:
-        text_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim)` *optional* returned when model is initialized with `with_projection=True`):
-            The text embeddings obtained by applying the projection layer to the pooler_output.
-        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-            Sequence of hidden-states at the output of the last layer of the model.
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
-            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
-
-            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    text_embeds: Optional[torch.FloatTensor] = None
-    last_hidden_state: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
 
 
 # Copied from transformers.models.clip.modeling_clip.CLIPOutput with CLIP -> Base
@@ -259,129 +199,6 @@ BASE_INPUTS_DOCSTRING = r"""
 """
 
 
-@registry.register_model("BaseTextModel")
-@add_start_docstrings(
-    """The text model from Base without any head or projection on top.""",
-    BASE_START_DOCSTRING,
-)
-class BaseTextModel(BasePreTrainedModel):
-    config_class = BaseTextConfig
-
-    def __init__(self, config: BaseTextConfig, **kwargs):
-        super().__init__(config)
-        # Initialize weights and apply final processing
-        super().init_weights()
-        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config, **kwargs)
-        super()._backward_compatibility_gradient_checkpointing()
-
-    def get_input_embeddings(self) -> nn.Module:
-        return self.text_model.get_input_embeddings
-
-    def set_input_embeddings(self, value):
-        self.text_model.get_input_embeddings = value
-
-    @add_start_docstrings_to_model_forward(BASE_TEXT_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=BaseTextConfig)
-    def forward(
-            self,
-            input_ids: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        r"""
-        Returns:
-
-        Examples:
-
-        ```python
-        >>> from transformers import AutoTokenizer
-        >>> from src.models import BaseTextModel
-
-        >>> model = BaseTextModel.from_pretrained("openai/clip-vit-base-patch32")
-        >>> tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-
-        >>> inputs = tokenizer(["a photo of a cat", "a photo of a dog"], padding=True, return_tensors="pt")
-
-        >>> outputs = model(**inputs)
-        >>> last_hidden_state = outputs.last_hidden_state
-        >>> pooled_output = outputs.pooler_output  # pooled (EOS token) states
-        ```"""
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        return self.text_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-
-@registry.register_model("BaseVisionModel")
-@add_start_docstrings(
-    """The vision model from CLIP without any head or projection on top.""",
-    BASE_START_DOCSTRING,
-)
-class BaseVisionModel(BasePreTrainedModel):
-    config_class = BaseVisionConfig
-    main_input_name = "pixel_values"
-
-    def __init__(self, config: BaseVisionConfig, **kwargs):
-        super().__init__(config)
-        # Initialize weights and apply final processing
-        super().init_weights()
-        self.text_model = AutoModel.from_pretrained(config.name_or_path, config=config, **kwargs)
-        super()._backward_compatibility_gradient_checkpointing()
-
-    def get_input_embeddings(self) -> nn.Module:
-        return self.text_model.get_input_embeddings
-
-    @add_start_docstrings_to_model_forward(BASE_VISION_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=BaseVisionConfig)
-    def forward(
-            self,
-            pixel_values: Optional[torch.FloatTensor] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
-        r"""
-        Returns:
-
-        Examples:
-
-        ```python
-        >>> from PIL import Image
-        >>> import requests
-        >>> from transformers import AutoTokenizer
-        >>> from src.models import BaseVisionModel
-
-        >>> model = BaseVisionModel.from_pretrained("openai/clip-vit-base-patch32")
-        >>> processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-
-        >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        >>> image = Image.open(requests.get(url, stream=True).raw)
-
-        >>> inputs = processor(images=image, return_tensors="pt")
-
-        >>> outputs = model(**inputs)
-        >>> last_hidden_state = outputs.last_hidden_state
-        >>> pooled_output = outputs.pooler_output  # pooled CLS states
-        ```"""
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        return self.vision_model(
-            pixel_values=pixel_values,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-
 @registry.register_model("BaseModel")
 @add_start_docstrings(BASE_START_DOCSTRING)
 class BaseModel(BasePreTrainedModel):
@@ -390,20 +207,8 @@ class BaseModel(BasePreTrainedModel):
     def __init__(self, config: BaseConfig):
         super().__init__(config)
 
-        if not isinstance(config.text_config, BaseTextConfig):
-            raise TypeError(
-                "config.text_config is expected to be of type CLIPTextConfig but is of type"
-                f" {type(config.text_config)}."
-            )
-
-        if not isinstance(config.vision_config, BaseVisionConfig):
-            raise TypeError(
-                "config.vision_config is expected to be of type CLIPVisionConfig but is of type"
-                f" {type(config.vision_config)}."
-            )
-
-        text_config = config.text_config
-        vision_config = config.vision_config
+        text_config = AutoConfig.from_pretrained(**config.text_config)
+        vision_config = AutoConfig.from_pretrained(**config.vision_config)
 
         self.pool_type = config.pool_type
         self.projection_dim = config.projection_dim
@@ -417,9 +222,9 @@ class BaseModel(BasePreTrainedModel):
         # Initialize weights and apply final processing
         super().init_weights()
 
-        self.text_model = BaseTextModel(text_config, attn_implementation=config._attn_implementation)
+        self.text_model = AutoModel.from_pretrained(**config.text_config)
 
-        self.vision_model = BaseVisionModel(vision_config, attn_implementation=config._attn_implementation)
+        self.vision_model = AutoModel.from_pretrained(**config.vision_config)
 
         super()._backward_compatibility_gradient_checkpointing()
 
@@ -428,29 +233,13 @@ class BaseModel(BasePreTrainedModel):
             self,
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
+            token_type_ids: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.Tensor] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
     ) -> torch.FloatTensor:
-        r"""
-        Returns:
-            text_features (`torch.FloatTensor` of shape `(batch_size, output_dim`): The text embeddings obtained by
-            applying the projection layer to the pooled output of [`BaseTextModel`].
 
-        Examples:
-
-        ```python
-        >>> from transformers import AutoTokenizer
-        >>> from src.models import BaseModel
-
-        >>> model = BaseModel.from_pretrained("openai/clip-vit-base-patch32")
-        >>> tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-
-        >>> inputs = tokenizer(["a photo of a cat", "a photo of a dog"], padding=True, return_tensors="pt")
-        >>> text_features = model.get_text_features(**inputs)
-        ```"""
-        # Use CLIP model's config for some fields (if specified) instead of those of vision & text components.
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -460,6 +249,7 @@ class BaseModel(BasePreTrainedModel):
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
             position_ids=position_ids,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -476,7 +266,7 @@ class BaseModel(BasePreTrainedModel):
             pooled_output = text_outputs[1]
         text_features = self.text_projection(pooled_output)
 
-        return text_features
+        return text_features.detach()
 
     @add_start_docstrings_to_model_forward(BASE_VISION_INPUTS_DOCSTRING)
     def get_image_features(
@@ -486,30 +276,7 @@ class BaseModel(BasePreTrainedModel):
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
     ) -> torch.FloatTensor:
-        r"""
-        Returns:
-            image_features (`torch.FloatTensor` of shape `(batch_size, output_dim`): The image embeddings obtained by
-            applying the projection layer to the pooled output of [`BaseVisionModel`].
 
-        Examples:
-
-        ```python
-        >>> from PIL import Image
-        >>> import requests
-        >>> from transformers import AutoProcessor
-        >>> from src.models import BaseModel
-
-        >>> model = BaseModel.from_pretrained("openai/clip-vit-base-patch32")
-        >>> processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-
-        >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        >>> image = Image.open(requests.get(url, stream=True).raw)
-
-        >>> inputs = processor(images=image, return_tensors="pt")
-
-        >>> image_features = model.get_image_features(**inputs)
-        ```"""
-        # Use CLIP model's config for some fields (if specified) instead of those of vision & text components.
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -526,7 +293,7 @@ class BaseModel(BasePreTrainedModel):
         pooled_output = vision_outputs[1]  # pooled_output
         image_features = self.visual_projection(pooled_output)
 
-        return image_features
+        return image_features.detach()
 
     @add_start_docstrings_to_model_forward(BASE_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=BaseOutput, config_class=BaseConfig)
@@ -535,6 +302,7 @@ class BaseModel(BasePreTrainedModel):
             input_ids: Optional[torch.LongTensor] = None,
             pixel_values: Optional[torch.FloatTensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
+            token_type_ids: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
             return_loss: Optional[bool] = None,
             output_attentions: Optional[bool] = None,
@@ -583,6 +351,7 @@ class BaseModel(BasePreTrainedModel):
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
             position_ids=position_ids,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -594,7 +363,7 @@ class BaseModel(BasePreTrainedModel):
 
         if self.pool_type is not None:
             text_embeds = pool(
-                last_hidden_states=text_outputs.last_hidden_states,
+                last_hidden_state=text_outputs.last_hidden_state,
                 attention_mask=attention_mask,
                 pool_type=self.pool_type
             )

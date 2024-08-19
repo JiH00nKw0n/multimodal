@@ -33,6 +33,10 @@ def convert_to_rgb(image: Union[Image.Image, np.ndarray, torch.Tensor]) -> torch
     if isinstance(image, torch.Tensor):
         if image.ndimension() == 3 and image.shape[0] == 1:
             image = image.expand(3, -1, -1)
+
+        elif image.ndimension() == 3 and image.shape[0] == 4:
+            image = image[:3, :, :]
+
         elif image.ndimension() == 2:
             image = image.unsqueeze(0).expand(3, -1, -1)
 

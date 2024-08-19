@@ -5,16 +5,10 @@ from src.models.processing_base import BaseProcessor
 from src.common.registry import registry
 
 __all__ = [
-    "BaseProcessor",
-    "BaseModel",
-    "BaseTextModel",
-    "BaseVisionModel",
     "BaseConfig",
-    "BaseTextConfig",
-    "BaseVisionConfig",
+    "BaseModel",
+    "BaseProcessor",
     "FuseMixConfig",
-    "FuseMixTextConfig",
-    "FuseMixVisionConfig",
     "FuseMixModel",
     "FuseMixProcessor",
 ]

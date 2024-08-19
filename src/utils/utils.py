@@ -34,10 +34,10 @@ from torchvision.datasets.utils import (
 )
 
 
-def pool(last_hidden_states: torch.Tensor,
+def pool(last_hidden_state: torch.Tensor,
          attention_mask: torch.Tensor,
          pool_type: str) -> torch.Tensor:
-    last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+    last_hidden = last_hidden_state.masked_fill(~attention_mask[..., None].bool(), 0.0)
 
     if pool_type == "avg":
         emb = last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
