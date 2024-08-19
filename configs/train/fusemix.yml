@@ -28,7 +28,7 @@ dataset:
     split: 'train'
 
 trainer:
-  output_dir: '/Users/jihoon/Downloads'
+  output_dir: '/mnt/working/multimodal/_output'
   learning_rate: &learning_rate 1.0e-3
   lr_scheduler_type: 'cosine'
   warmup_steps: &warmup_steps 100
