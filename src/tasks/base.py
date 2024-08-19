@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["BaseTask"]
 
 
-class BaseTask(BaseModel, extra=Extra.allow):
+class BaseTask(BaseModel, extra=Extra.forbid):
     config: Any
 
     @classmethod
