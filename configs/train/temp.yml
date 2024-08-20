@@ -1,0 +1,63 @@
+run:
+  task: 'TrainTask'
+  trainer: 'BaseTrainer'
+  seed: 2024
+  max_seq_length: 64
+
+  device: "cuda"
+  world_size: 1
+  distributed: False
+
+model:
+  _name_or_path: ''
+  architectures: 'BaseFrozenDualEncoderModel'
+  config_cls: 'BaseDualEncoderConfig'
+  config:
+    text_config:
+      pretrained_model_name_or_path: 'intfloat/multilingual-e5-large-instruct'
+    vision_config:
+      pretrained_model_name_or_path: 'facebook/dinov2-large'
+    projection_dim: 1024
+
+processor:
+  cls: "PretrainedProcessor"
+  config:
+    image_processor:
+      pretrained_model_name_or_path: 'facebook/dinov2-large'
+    tokenizer:
+      pretrained_model_name_or_path: 'intfloat/multilingual-e5-large-instruct'
+
+dataset:
+  'ConceptualCaptionsDatasetBuilder':
+    split: 'train'
+
+trainer:
+  output_dir: '/Users/jihoon/Downloads'
+  learning_rate: &learning_rate 1.0e-4
+  lr_scheduler_type: 'linear'
+  warmup_steps: &warmup_steps 100
+  weight_decay: &weight_decay 1.0e-1
+  max_steps : &max_steps 1000
+  save_steps: 50
+  logging_steps : 1
+  evaluation_strategy: 'no' # 'steps', 'epochs', 'no'
+
+  num_train_epochs: 1
+  per_device_train_batch_size : &per_device_batch_size 64
+  gradient_accumulation_steps: &gradient_accumulation 16
+  # For memory efficiency.
+  gradient_checkpointing : True
+  # NOTE : need to use this option to cope with DDP
+  gradient_checkpointing_kwargs :
+    use_reentrant : False
+  ddp_find_unused_parameters : False
+
+  fp16: &fp16 True # use torch.float16
+  fp16_opt_level : '01'
+  bf16: &bf16 False # Use torch.bfloat16
+
+  group_by_length : False # Whether to order the sample by token length.
+  use_cpu : False
+  remove_unused_columns : False
+
+
