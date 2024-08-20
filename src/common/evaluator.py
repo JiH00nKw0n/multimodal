@@ -1,7 +1,8 @@
-from typing import List, Optional, Any
-
-import numpy as np
+import json
+import os
+from typing import List, Optional, Any, Union, Tuple
 import torch
+from torch import Tensor
 from torch.utils.data import DataLoader
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import PreTrainedModel
@@ -36,6 +37,7 @@ class BaseEvaluator(BaseModel):
 @registry.register_evaluator("RetrievalEvaluator")
 class RetrievalEvaluator(BaseEvaluator):
     k_values: Optional[List[int]] = None
+    output_dir: Optional[Union[str, os.PathLike]] = None
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
     image_to_text_map: List[List[int]] = Field(default_factory=list)
@@ -46,7 +48,7 @@ class RetrievalEvaluator(BaseEvaluator):
     image_embeds: List[torch.Tensor] = Field(default_factory=list)
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
-    def _encode_dataset(self, batch_size: int = 128):
+    def _encode_dataset(self, batch_size: int = 128) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
 
         image_idx = 0
         text_idx = 0
@@ -150,4 +152,6 @@ class RetrievalEvaluator(BaseEvaluator):
             t2i_recalls[f"Recall@{k}"] = round(t2i, 2)
             i2t_recalls[f"Recall@{k}"] = round(i2t, 2)
 
-        return {"t2i": t2i_recalls, "i2t": i2t_recalls}
+        if self.output_dir is not None:
+            with open(self.output_dir, "w") as f:
+                json.dump({"t2i": t2i_recalls, "i2t": i2t_recalls}, f, indent=2)

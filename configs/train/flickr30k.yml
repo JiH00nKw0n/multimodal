@@ -28,3 +28,4 @@ evaluator:
     - 1
     - 5
     - 10
+  output_dir:
