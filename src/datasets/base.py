@@ -1,10 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from datasets import Sequence, Value, Features, Image, IterableDataset
 from typing import Optional, Dict, Any
-import torch.distributed as dist
 import logging
-
-from src.utils import is_main_process, is_dist_avail_and_initialized
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +9,13 @@ logger = logging.getLogger(__name__)
 class BaseDatasetFeatures(BaseModel):
     images: Image = Image()
     text: Value = Value(dtype='string', id=None)
+
+    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
+
+
+class SequenceTextDatasetFeatures(BaseModel):
+    images: Image = Image()
+    text: Sequence = Sequence(Value(dtype='string', id=None))
 
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
 
@@ -25,6 +29,20 @@ class BaseDatasetBuilder(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         if self.features is None:
             self.features = Features(BaseDatasetFeatures())
+
+    def build_dataset(self) -> IterableDataset:
+        raise NotImplementedError
+
+
+class SequenceTextDatasetBuilder(BaseModel):
+    features: Optional[Features] = None
+    dataset: Dict = Field(default_factory=dict, exclude=True)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.features is None:
+            self.features = Features(SequenceTextDatasetFeatures())
 
     def build_dataset(self) -> IterableDataset:
         raise NotImplementedError

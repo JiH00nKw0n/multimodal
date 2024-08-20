@@ -1,7 +1,7 @@
 """Base model configuration"""
 
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 
@@ -22,8 +22,8 @@ class BaseConfig(PretrainedConfig):
 
     def __init__(
             self,
-            text_pretrained_model_name_or_path: Optional[str] = None,
-            vision_pretrained_model_name_or_path: Optional[str] = None,
+            text_pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None,
+            vision_pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None,
             pool_type: Optional[str] = None,
             projection_dim: Optional[int] = 512,
             logit_scale_init_value: Optional[float] = 2.6592,

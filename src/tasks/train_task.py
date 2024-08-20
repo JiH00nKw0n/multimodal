@@ -14,9 +14,9 @@ class TrainTask(BaseTask):
     config: TrainConfig
 
     def build_trainer(self, trainer_config: Optional[Dict] = None):
-        assert "trainer" in self.config.run_config, "Trainer name must be provided."
+        assert "runner" in self.config.run_config, "Trainer name must be provided."
 
-        trainer_name = self.config.run_config.trainer
+        trainer_name = self.config.run_config.runner
         trainer = registry.get_trainer_class(trainer_name)
         assert trainer is not None, "Task {} not properly registered.".format(trainer_name)
 

@@ -6,6 +6,7 @@ Models = TypeVar("Models", bound="PreTrainedModel")
 ModelConfigs = TypeVar("ModelConfigs", bound="PretrainedConfig")
 Trainers = TypeVar("Trainers", bound="Trainer")
 Builders = TypeVar("Builders", bound="BaseDatasetBuilder")
+Evaluators = TypeVar("Evaluators", bound="BaseEvaluator")
 
 
 class Registry:
@@ -16,6 +17,7 @@ class Registry:
         "model_name_mapping": {},
         "model_config_name_mapping": {},
         "trainer_name_mapping": {},
+        "evaluator_name_mapping": {},
     }
 
     @classmethod
@@ -78,6 +80,27 @@ class Registry:
             cls.mapping["trainer_name_mapping"][name] = trainer_cls
 
             return trainer_cls
+
+        return wrap
+
+    @classmethod
+    def register_evaluator(cls, name):
+        def wrap(evaluator_cls) -> Evaluators:
+            from src.common.evaluator import BaseEvaluator
+
+            assert issubclass(
+                evaluator_cls, BaseEvaluator
+            ), "All evaluator must inherit BaseEvaluator"
+
+            if name in cls.mapping["evaluator_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["evaluator_name_mapping"][name]
+                    )
+                )
+            cls.mapping["evaluator_name_mapping"][name] = evaluator_cls
+
+            return evaluator_cls
 
         return wrap
 
@@ -169,8 +192,16 @@ class Registry:
         return cls.mapping["trainer_name_mapping"].get(name, None)
 
     @classmethod
+    def get_evaluator_class(cls, name):
+        return cls.mapping["evaluator_name_mapping"].get(name, None)
+
+    @classmethod
     def list_trainers(cls):
         return sorted(cls.mapping["trainer_name_mapping"].keys())
+
+    @classmethod
+    def list_evaluators(cls):
+        return sorted(cls.mapping["evaluator_name_mapping"].keys())
 
     @classmethod
     def list_models(cls):

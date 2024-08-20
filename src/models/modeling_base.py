@@ -296,7 +296,7 @@ class BaseModel(BasePreTrainedModel):
         return image_features.detach()
 
     @add_start_docstrings_to_model_forward(BASE_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseOutput, config_class=BaseConfig)
+    # @replace_return_docstrings(output_type=BaseOutput, config_class=BaseConfig)
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,

@@ -1,4 +1,5 @@
-from typing import Optional
+import os
+from typing import Optional, Union
 import torch
 from transformers import PretrainedConfig
 
@@ -16,10 +17,10 @@ class FuseMixConfig(PretrainedConfig):
 
     def __init__(
             self,
-            text_pretrained_model_name_or_path: Optional[str] = None,
-            vision_pretrained_model_name_or_path: Optional[str] = None,
+            text_pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None,
+            vision_pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None,
             projection_dim: Optional[int] = 512,
-            logit_scale_init_value: Optional[int] = 0.07,
+            temperature: Optional[int] = 0.07,
             pool_type: Optional[str] = None,
             drop_out: Optional[float] = 0.0,
             num_fusion_layer: Optional[int] = 4,
@@ -43,5 +44,5 @@ class FuseMixConfig(PretrainedConfig):
         self.drop_out = drop_out
         self.num_fusion_layer = num_fusion_layer
         self.expansion_factor = expansion_factor
-        self.logit_scale_init_value = logit_scale_init_value
+        self.temperature = temperature
         self.initializer_factor = 1.0

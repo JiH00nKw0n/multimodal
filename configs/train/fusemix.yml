@@ -1,6 +1,6 @@
 run:
   task: 'TrainTask'
-  trainer: 'BaseTrainer'
+  runner: 'BaseTrainer'
   seed: 2024
   max_seq_length: 64
 

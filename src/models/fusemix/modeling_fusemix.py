@@ -117,7 +117,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
         self.text_projection = FuseMixLayer(self.text_embed_dim, config)
         self.vision_projection = FuseMixLayer(self.vision_embed_dim, config)
 
-        self.logit_scale = nn.Parameter(torch.tensor(self.config.logit_scale_init_value))
+        self.temperature = nn.Parameter(torch.tensor(self.config.temperature))
 
         # Initialize weights and apply final processing
         super().init_weights()
@@ -204,7 +204,7 @@ class FuseMixModel(FuseMixPreTrainedModel):
         return image_features.detach()
 
     @add_start_docstrings_to_model_forward(BASE_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseOutput, config_class=FuseMixConfig)
+    # @replace_return_docstrings(output_type=BaseOutput, config_class=FuseMixConfig)
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
@@ -266,8 +266,8 @@ class FuseMixModel(FuseMixPreTrainedModel):
             self.logit_scale.clamp_(0.001, 0.5)
 
         # cosine similarity as logits
-        logit_scale = self.logit_scale
-        logits_per_text = torch.matmul(text_embeds, image_embeds.t().to(text_embeds.device)) / logit_scale.to(
+        temperature = self.temperature
+        logits_per_text = torch.matmul(text_embeds, image_embeds.t().to(text_embeds.device)) * temperature.to(
             text_embeds.device
         )
         logits_per_image = logits_per_text.t()

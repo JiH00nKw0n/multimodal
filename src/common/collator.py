@@ -1,11 +1,13 @@
 import logging
+from collections import defaultdict
+
 import numpy as np
 import torch
 from dataclasses import dataclass
 from transformers import (
     BatchEncoding,
 )
-from typing import Union, List, Dict, Optional, TypeVar
+from typing import Union, List, Dict, Optional, TypeVar, Any
 from PIL import Image
 from transformers.utils import PaddingStrategy
 
@@ -71,7 +73,7 @@ class BaseCollator:
     def __post_init__(self):
         pass
 
-    def __call__(self, inputs: List[Dict[str, List]]) -> BatchEncoding:
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
         processed_dict = {
             key: list(map(lambda d: convert_to_rgb(d[key]) if key == 'images' else d[key], inputs))
             for key in inputs[0].keys()
@@ -81,4 +83,35 @@ class BaseCollator:
                   'pad_to_multiple_of': self.pad_to_multiple_of
                   }
         processor_input = dict(processed_dict, **kwargs)
+        return self.processor(**processor_input)
+
+
+@dataclass
+class SequenceTextCollator(BaseCollator):
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        processed_dict = defaultdict(list)
+
+        for key in inputs[0].keys():
+            values = [d[key] for d in inputs]
+
+            if key == 'images':
+                processed_dict[key].extend([convert_to_rgb(value) for value in values])
+            else:
+                for value in values:
+                    if isinstance(value, str):
+                        processed_dict[key].append(value)
+                    elif isinstance(value, list):
+                        processed_dict[key].extend(value)
+                    else:
+                        raise TypeError()
+
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'pad_to_multiple_of': self.pad_to_multiple_of
+        }
+
+        processor_input = dict(processed_dict, **kwargs)
+
         return self.processor(**processor_input)
