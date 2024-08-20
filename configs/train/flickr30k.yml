@@ -1,0 +1,30 @@
+run:
+  task: 'EvaluateTask'
+  runner: 'RetrievalEvaluator'
+  seed: 2024
+  max_seq_length: 64
+
+  device: "cuda"
+  world_size: 1
+  distributed: False
+
+model:
+  model_cls: 'FuseMixModel'
+  config:
+    pretrained_model_name_or_path: 'BAAI/bge-large-en-v1.5'
+
+processor:
+  processor_cls: "FuseMixProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'BAAI/bge-large-en-v1.5'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-giant'
+
+dataset:
+  'ConceptualCaptionsDatasetBuilder':
+    split: 'train'
+
+evaluator:
+  k_values:
+    - 1
+    - 5
+    - 10
