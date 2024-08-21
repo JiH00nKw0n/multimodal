@@ -16,6 +16,7 @@ from src.models.configuration_base import BaseConfig
 from src.models.fusemix.configuration_fusemix import (
     FuseMixConfig
 )
+
 __all__ = ["FuseMixModel"]
 
 
@@ -92,7 +93,7 @@ FUSEMIX_START_DOCSTRING = r"""
     and behavior.
 
     Parameters:
-        config ([`LiTConfig`]): Model configuration class with all the parameters of the model.
+        config ([`FuseMixConfig`]): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~PreTrainedModel.from_pretrained`] method to load the model weights.
 """
@@ -289,3 +290,6 @@ class FuseMixModel(FuseMixPreTrainedModel):
             text_model_output=text_outputs,
             vision_model_output=vision_outputs,
         )
+
+
+AutoModel.register(FuseMixConfig, FuseMixModel)

@@ -10,8 +10,10 @@ run:
 
 model:
   model_cls: 'FuseMixModel'
+  config_cls: 'FuseMixConfig'
+  config_path: '/mnt/working/_output/checkpoint-125/config.json'
   config:
-    pretrained_model_name_or_path: 'BAAI/bge-large-en-v1.5'
+    pretrained_model_name_or_path: '/mnt/working/_output/checkpoint-125'
 
 processor:
   processor_cls: "FuseMixProcessor"
@@ -20,12 +22,12 @@ processor:
       vision_pretrained_model_name_or_path: 'facebook/dinov2-giant'
 
 dataset:
-  'ConceptualCaptionsDatasetBuilder':
-    split: 'train'
+  'Flickr30kDatasetBuilder':
+    split: 'test'
 
 evaluator:
   k_values:
     - 1
     - 5
     - 10
-  output_dir:
+  output_dir: '/mnt/working/_result/checkpoint-125'

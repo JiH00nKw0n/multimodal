@@ -7,6 +7,7 @@ from datasets import Dataset
 @registry.register_builder('Flickr30kDatasetBuilder')
 class Flickr30kDatasetBuilder(SequenceTextDatasetBuilder):
     split: str = 'test'
+    name = 'flickr30k'
 
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(

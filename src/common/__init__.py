@@ -1,12 +1,15 @@
 from .trainer import BaseTrainer
 from .config import TrainConfig, EvaluateConfig
 from .registry import registry
+from .evaluator import RetrievalEvaluator, BaseEvaluator
 from .collator import BaseCollator, SequenceTextCollator
 from .logger import setup_logger
 from .callbacks import CustomWandbCallback
 
 __all__ = [
     "BaseTrainer",
+    "RetrievalEvaluator",
+    "BaseEvaluator",
     "TrainConfig",
     "EvaluateConfig",
     "registry",

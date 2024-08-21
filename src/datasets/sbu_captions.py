@@ -32,6 +32,7 @@ def fetch_single_image(example: Dict, timeout: Optional[float] = None) -> Dict:
 @registry.register_builder('SBUCaptionsDatasetBuilder')
 class SBUCaptionsDatasetBuilder(BaseDatasetBuilder):
     split: str = 'train'
+    name = 'sbu_captions'
 
     def build_dataset(self) -> IterableDataset:
         dataset = load_dataset(

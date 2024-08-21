@@ -1,7 +1,7 @@
 import os
 from typing import Optional, Union
 import torch
-from transformers import PretrainedConfig
+from transformers import PretrainedConfig, AutoConfig
 
 from src.common.registry import registry
 
@@ -30,12 +30,15 @@ class FuseMixConfig(PretrainedConfig):
         if kwargs.get('torch_dtype') == 'fp16':
             kwargs['torch_dtype'] = torch.float16
 
+        text_config = kwargs.pop('text_config', None)
+        vision_config = kwargs.pop('vision_config', None)
+
         super().__init__(**kwargs)
 
-        self.text_config = dict(
+        self.text_config = text_config if text_config is not None else dict(
             {"pretrained_model_name_or_path": text_pretrained_model_name_or_path}, **kwargs
         )
-        self.vision_config = dict(
+        self.vision_config = vision_config if vision_config is not None else dict(
             {"pretrained_model_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
         )
 
@@ -46,3 +49,6 @@ class FuseMixConfig(PretrainedConfig):
         self.expansion_factor = expansion_factor
         self.temperature = temperature
         self.initializer_factor = 1.0
+
+
+AutoConfig.register('fusemix', FuseMixConfig)

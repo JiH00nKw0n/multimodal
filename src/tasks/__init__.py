@@ -1,5 +1,6 @@
 from .base import BaseTask
 from .train_task import TrainTask
+from .evaluate_task import EvaluateTask
 from src.common.registry import registry
 
 __all__ = ["BaseTask", "TrainTask"]

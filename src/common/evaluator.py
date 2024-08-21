@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import PreTrainedModel
 from src.common.collator import SequenceTextCollator
-from datasets import Dataset
+from datasets import DatasetDict
 from .registry import registry
 
 
@@ -20,7 +20,7 @@ def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[l
 class BaseEvaluator(BaseModel):
     model: PreTrainedModel
     data_collator: SequenceTextCollator
-    evaluate_dataset: Dataset
+    evaluate_dataset: DatasetDict
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -149,9 +149,11 @@ class RetrievalEvaluator(BaseEvaluator):
         t2i_recalls, i2t_recalls = {}, {}
 
         for k_val, t2i, i2t in zip(k_values, text_to_image_recall, image_to_text_recall):
-            t2i_recalls[f"Recall@{k}"] = round(t2i, 2)
-            i2t_recalls[f"Recall@{k}"] = round(i2t, 2)
+            t2i_recalls[f"Recall@{k_val}"] = round(t2i, 2)
+            i2t_recalls[f"Recall@{k_val}"] = round(i2t, 2)
+
+        os.makedirs(self.output_dir, exist_ok=True)
 
         if self.output_dir is not None:
-            with open(self.output_dir, "w") as f:
+            with open(os.path.join(self.output_dir, 'result.json'), "w") as f:
                 json.dump({"t2i": t2i_recalls, "i2t": i2t_recalls}, f, indent=2)

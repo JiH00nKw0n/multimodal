@@ -7,6 +7,7 @@ from datasets import IterableDataset
 @registry.register_builder('ConceptualCaptionsDatasetBuilder')
 class ConceptualCaptionsDatasetBuilder(BaseDatasetBuilder):
     split: str = 'train'
+    name = 'cc3m'
 
     def build_dataset(self) -> IterableDataset:
         dataset = load_dataset(

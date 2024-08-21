@@ -10,10 +10,11 @@ from transformers import (
 from typing import Union, List, Dict, Optional, TypeVar, Any
 from PIL import Image
 from transformers.utils import PaddingStrategy
+from transformers import ProcessorMixin
 
 logger = logging.getLogger(__name__)
 
-Processors = TypeVar("Processors", bound="ProcessorMixin")
+Processors = TypeVar("Processors", bound=ProcessorMixin)
 
 
 def convert_to_rgb(image: Union[Image.Image, np.ndarray, torch.Tensor]) -> torch.Tensor:
@@ -66,6 +67,7 @@ class BaseCollator:
 
     processor: Processors
     padding: Union[bool, str, PaddingStrategy] = 'max_length'
+    truncation: bool = True
     max_length: Optional[int] = 64
     pad_to_multiple_of: Optional[int] = None
     return_tensors: str = "pt"
@@ -80,6 +82,7 @@ class BaseCollator:
         }
         kwargs = {'return_tensors': self.return_tensors,
                   'padding': self.padding,
+                  'truncation': self.truncation,
                   'pad_to_multiple_of': self.pad_to_multiple_of
                   }
         processor_input = dict(processed_dict, **kwargs)
@@ -109,6 +112,7 @@ class SequenceTextCollator(BaseCollator):
         kwargs = {
             'return_tensors': self.return_tensors,
             'padding': self.padding,
+            'truncation': self.truncation,
             'pad_to_multiple_of': self.pad_to_multiple_of
         }
 

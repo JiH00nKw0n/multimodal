@@ -31,12 +31,16 @@ class BaseConfig(PretrainedConfig):
     ):
         if kwargs.get('torch_dtype') == 'fp16':
             kwargs['torch_dtype'] = torch.float16
+
+        text_config = kwargs.pop('text_config', None)
+        vision_config = kwargs.pop('vision_config', None)
+
         super().__init__(**kwargs)
 
-        self.text_config = dict(
+        self.text_config = text_config if text_config is not None else dict(
             {"pretrained_model_name_or_path": text_pretrained_model_name_or_path}, **kwargs
         )
-        self.vision_config = dict(
+        self.vision_config = vision_config if vision_config is not None else dict(
             {"pretrained_model_name_or_path": vision_pretrained_model_name_or_path}, **kwargs
         )
 

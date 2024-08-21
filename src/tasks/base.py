@@ -22,7 +22,9 @@ class BaseTask(BaseModel, extra=Extra.forbid):
 
         model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
         model_cls = registry.get_model_class(model_config.model_cls)
+
         assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
 
         model_cfg = model_cfg_cls(**model_config.config)
         model = model_cls(model_cfg)
