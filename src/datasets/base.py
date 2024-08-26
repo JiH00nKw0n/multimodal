@@ -20,24 +20,22 @@ class SequenceTextDatasetFeatures(BaseModel):
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
 
 
-class BaseDatasetFeaturesWithHN(BaseModel):
-    images: Image = Image()
-    text: Value = Value(dtype='string', id=None)
-    hard_images: Sequence = Sequence(Image())
-    hard_texts: Sequence(Sequence(Value(dtype='string', id=None)))
-    neg_texts: Sequence(Sequence(Value(dtype='string', id=None)))
-    hard_neg_texts: Sequence(Sequence(Value(dtype='string', id=None)))
+class BaseDatasetFeaturesWithHN(BaseDatasetFeatures):
+    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=False, arbitrary_types_allowed=True)
 
-    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
+    def model_post_init(self, __context: Any) -> None:
+        self.hard_images = Sequence(Image())
+        self.hard_texts = Sequence(Sequence(Value(dtype='string', id=None)))
+        self.neg_texts = Sequence(Sequence(Value(dtype='string', id=None)))
+        self.hard_neg_texts = Sequence(Sequence(Value(dtype='string', id=None)))
 
 
-class SequenceTextDatasetFeaturesWithHN(BaseModel):
-    images: Image = Image()
-    text: Sequence = Sequence(Value(dtype='string', id=None))
-    neg_images: Sequence = Sequence(Image())
-    neg_texts: Sequence(Value(dtype='string', id=None))
+class SequenceTextDatasetFeaturesWithHN(SequenceTextDatasetFeatures):
+    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=False, arbitrary_types_allowed=True)
 
-    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
+    def model_post_init(self, __context: Any) -> None:
+        self.neg_images = Sequence(Image())
+        self.neg_texts = Sequence(Value(dtype='string', id=None))
 
 
 class BaseBuilder(BaseModel):
@@ -81,7 +79,7 @@ class SequenceTextDatasetWithHNBuilder(BaseBuilder):
 
     def model_post_init(self, __context: Any) -> None:
         if self.base_features is None:
-            self.base_features = Features(BaseDatasetFeatures())
+            self.base_features = Features(SequenceTextDatasetFeatures())
         if self.features is None:
-            self.features = Features(BaseDatasetFeaturesWithHN())
+            self.features = Features(SequenceTextDatasetFeaturesWithHN())
 

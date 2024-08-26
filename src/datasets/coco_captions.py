@@ -90,7 +90,7 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             )
         dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
-        dataset = dataset.cast_column(column='images', feature=Image())
+        # dataset = dataset.cast_column(column='images', feature=Image())
 
         dataset = self.negative_image_mining(dataset)
         dataset = self.negative_text_mining(dataset)
@@ -106,12 +106,12 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             batch_size=self.batch_size,
             top_k=self.image_top_k,
         )
-        similarity_dict = image_similarity_calculator.compute_image_similarity(images=dataset["images"])
+        similarity_dict = image_similarity_calculator.compute_image_similarity(dataset=dataset)
 
         for idx, example in tqdm(enumerate(dataset)):
             similar_indices = similarity_dict[idx]
-            hard_images = [similar_example['images'] for similar_example in dataset[similar_indices]]
-            hard_texts = [similar_example['text'] for similar_example in dataset[similar_indices]]
+            hard_images = [dataset[idx]['images'] for idx in similar_indices]
+            hard_texts = [dataset[idx]['text'] for idx in similar_indices]
             new_examples.append({
                 'images': example['images'],
                 'text': example["text"],
@@ -198,7 +198,8 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             if not eligible_groups:
                 break  # 스왑할 요소가 부족한 경우 중단
 
-            group = self.rng.choice(eligible_groups)
+            group_index = self.rng.choice(len(eligible_groups))
+            group = eligible_groups[group_index]
             a, b = self.rng.choice(group, 2, replace=False)
             new_tokens = list(doc)
 

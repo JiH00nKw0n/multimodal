@@ -149,12 +149,10 @@ class Registry:
     @classmethod
     def register_builder(cls, name):
         def wrap(builder_cls) -> BuilderType:
-            from src.datasets import BaseDatasetBuilder, SequenceTextDatasetBuilder
+            from src.datasets import BaseBuilder
 
             assert issubclass(
-                builder_cls, BaseDatasetBuilder
-            ) or issubclass(
-                builder_cls, SequenceTextDatasetBuilder
+                builder_cls, BaseBuilder
             ), "All tasks must inherit BaseDatasetBuilder or SequenceTextDatasetBuilder"
 
             if name in cls.mapping["builder_name_mapping"]:

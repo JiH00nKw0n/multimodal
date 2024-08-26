@@ -1,5 +1,5 @@
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
-from transformers import TrainingArguments
+from transformers import TrainingArguments, AutoModel, AutoProcessor
 import logging
 from src.common import TrainConfig, registry, BaseCollator
 from src.tasks.base import BaseTask
@@ -48,22 +48,15 @@ class PretrainedModelTrainTask(TrainTask):
         model_config = model_config \
             if model_config is not None else self.config.model_config.copy()
 
-        model_cls = registry.get_model_class(model_config.model_cls)
-
-        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
-
-        model = model_cls.from_pretrained(model_config.config)
+        model = AutoModel.from_pretrained(**model_config.config)
 
         return model
 
     def build_processor(self, processor_config: Optional[Dict] = None):
         processor_config = processor_config \
             if processor_config is not None else self.config.processor_config.copy()
-        processor_cls = registry.get_processor_class(processor_config.processor_cls)
 
-        assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
-
-        return processor_cls.from_pretrained(processor_config.config)
+        return AutoProcessor.from_pretrained(**processor_config.config)
 
 
 class CustomModelTrainTask(TrainTask):

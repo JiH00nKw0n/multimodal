@@ -3,8 +3,23 @@ from typing import List, Dict, Optional, Union
 import torch
 from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
+from datasets import Dataset
+import multiprocessing
 from PIL import Image
-from src.utils.utils import _get_vector_norm
+import requests
+from io import BytesIO
+
+
+def load_image(url):
+    response = requests.get(url)
+    img = Image.open(BytesIO(response.content)).convert("RGB")
+    return img
+
+
+def process_batch(urls):
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        images = pool.map(load_image, urls)
+    return images
 
 
 class ImageSimilarityCalculator:
@@ -24,25 +39,26 @@ class ImageSimilarityCalculator:
 
     def compute_image_similarity(
             self,
-            images: List[Image.Image],
+            dataset: Dataset,
             show_progress_bar: Optional[bool] = True
     ) -> Dict[int, List[int]]:
         all_embeddings = []
         for start_index in tqdm(
-                range(0, len(images), self.batch_size), desc=f"Encoding {self.batch_size} batches",
+                range(0, len(dataset), self.batch_size), desc=f"Encoding {self.batch_size} batches",
                 disable=not show_progress_bar):
-            batch_images = images[start_index: start_index + self.batch_size]
+            url_list = dataset[start_index: start_index + self.batch_size]['images']
+            dataset = Dataset.from_dict({"image_url": url_list})
+            dataset = dataset.cast_column(column='image_url', feature=Image())
 
             inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
 
             with torch.no_grad():
-                embeddings = _get_vector_norm(self.model.get_image_features(**inputs))
-                embeddings = embeddings.cpu()
-                embeddings.to(torch.float32)
+                embeddings = self.model.get_image_features(**inputs)
+                embeddings = embeddings / embeddings.norm(dim=1, keepdim=True)
 
-            all_embeddings.extend(embeddings)
+            all_embeddings.append(embeddings)  # Use append instead of extend
 
-        all_embeddings = torch.stack(all_embeddings)
+        all_embeddings = torch.cat(all_embeddings, dim=0)  # Concatenate along the first dimension
 
         # 유사도 행렬 계산 (각 이미지 쌍 간의 코사인 유사도)
         similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T)
