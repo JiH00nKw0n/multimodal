@@ -1,12 +1,12 @@
-from typing import TypeVar
+from typing import TypeVar, Union
 
-Processors = TypeVar("Processors", bound="ProcessorMixin")
-Tasks = TypeVar("Tasks", bound="BaseTask")
-Models = TypeVar("Models", bound="PreTrainedModel")
-ModelConfigs = TypeVar("ModelConfigs", bound="PretrainedConfig")
-Trainers = TypeVar("Trainers", bound="Trainer")
-Builders = TypeVar("Builders", bound="BaseDatasetBuilder")
-Evaluators = TypeVar("Evaluators", bound="BaseEvaluator")
+ProcessorType = TypeVar("ProcessorType", bound="ProcessorMixin")
+TaskType = TypeVar("TaskType", bound="BaseTask")
+ModelType = TypeVar("ModelType", bound="PreTrainedModel")
+ModelConfigType = TypeVar("ModelConfigType", bound="PretrainedConfig")
+TrainerType = TypeVar("TrainerType", bound="Trainer")
+BuilderType = TypeVar("BuilderType", bound="BaseBuilder")
+EvaluatorType = TypeVar("EvaluatorType", bound="BaseEvaluator")
 
 
 class Registry:
@@ -22,7 +22,7 @@ class Registry:
 
     @classmethod
     def register_processor(cls, name):
-        def wrap(processor_cls) -> Processors:
+        def wrap(processor_cls) -> ProcessorType:
             from transformers import ProcessorMixin
 
             assert issubclass(
@@ -43,7 +43,7 @@ class Registry:
 
     @classmethod
     def register_task(cls, name):
-        def wrap(task_cls) -> Tasks:
+        def wrap(task_cls) -> TaskType:
             from src.tasks import BaseTask
 
             assert issubclass(
@@ -64,7 +64,7 @@ class Registry:
 
     @classmethod
     def register_trainer(cls, name):
-        def wrap(trainer_cls) -> Trainers:
+        def wrap(trainer_cls) -> TrainerType:
             from transformers import Trainer
 
             assert issubclass(
@@ -85,7 +85,7 @@ class Registry:
 
     @classmethod
     def register_evaluator(cls, name):
-        def wrap(evaluator_cls) -> Evaluators:
+        def wrap(evaluator_cls) -> EvaluatorType:
             from src.common.evaluator import BaseEvaluator
 
             assert issubclass(
@@ -106,7 +106,7 @@ class Registry:
 
     @classmethod
     def register_model(cls, name):
-        def wrap(model_cls) -> Models:
+        def wrap(model_cls) -> ModelType:
             from transformers import PreTrainedModel
 
             assert issubclass(
@@ -127,7 +127,7 @@ class Registry:
 
     @classmethod
     def register_model_config(cls, name):
-        def wrap(config_cls) -> Tasks:
+        def wrap(config_cls) -> ModelConfigType:
             from transformers import PretrainedConfig
 
             assert issubclass(
@@ -148,12 +148,14 @@ class Registry:
 
     @classmethod
     def register_builder(cls, name):
-        def wrap(builder_cls) -> Builders:
-            from src.datasets import BaseDatasetBuilder
+        def wrap(builder_cls) -> BuilderType:
+            from src.datasets import BaseDatasetBuilder, SequenceTextDatasetBuilder
 
             assert issubclass(
                 builder_cls, BaseDatasetBuilder
-            ), "All tasks must inherit BaseTasks"
+            ) or issubclass(
+                builder_cls, SequenceTextDatasetBuilder
+            ), "All tasks must inherit BaseDatasetBuilder or SequenceTextDatasetBuilder"
 
             if name in cls.mapping["builder_name_mapping"]:
                 raise KeyError(

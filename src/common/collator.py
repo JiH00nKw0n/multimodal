@@ -14,7 +14,7 @@ from transformers import ProcessorMixin
 
 logger = logging.getLogger(__name__)
 
-Processors = TypeVar("Processors", bound=ProcessorMixin)
+ProcessorType = TypeVar("ProcessorType", bound=ProcessorMixin)
 
 
 def convert_to_rgb(image: Union[Image.Image, np.ndarray, torch.Tensor]) -> torch.Tensor:
@@ -65,11 +65,13 @@ class BaseCollator:
             The type of Tensor to return. Allowable values are "np", "pt" and "tf".
     """
 
-    processor: Processors
+    processor: ProcessorType
     padding: Union[bool, str, PaddingStrategy] = 'max_length'
     truncation: bool = True
     max_length: Optional[int] = 64
     pad_to_multiple_of: Optional[int] = None
+    return_loss: Optional[bool] = True
+    return_dict: Optional[bool] = True
     return_tensors: str = "pt"
 
     def __post_init__(self):
@@ -83,9 +85,12 @@ class BaseCollator:
         kwargs = {'return_tensors': self.return_tensors,
                   'padding': self.padding,
                   'truncation': self.truncation,
-                  'pad_to_multiple_of': self.pad_to_multiple_of
+                  'pad_to_multiple_of': self.pad_to_multiple_of,
+                  'return_loss': self.return_loss,
+                  'return_dict': self.return_dict
                   }
         processor_input = dict(processed_dict, **kwargs)
+
         return self.processor(**processor_input)
 
 

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
-from datasets import Sequence, Value, Features, Image, IterableDataset
-from typing import Optional, Dict, Any
+from datasets import Sequence, Value, Features, Image, IterableDataset, Dataset
+from typing import Optional, Dict, Any, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,37 @@ class SequenceTextDatasetFeatures(BaseModel):
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
 
 
-class BaseDatasetBuilder(BaseModel):
+class BaseDatasetFeaturesWithHN(BaseModel):
+    images: Image = Image()
+    text: Value = Value(dtype='string', id=None)
+    hard_images: Sequence = Sequence(Image())
+    hard_texts: Sequence(Sequence(Value(dtype='string', id=None)))
+    neg_texts: Sequence(Sequence(Value(dtype='string', id=None)))
+    hard_neg_texts: Sequence(Sequence(Value(dtype='string', id=None)))
+
+    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
+
+
+class SequenceTextDatasetFeaturesWithHN(BaseModel):
+    images: Image = Image()
+    text: Sequence = Sequence(Value(dtype='string', id=None))
+    neg_images: Sequence = Sequence(Image())
+    neg_texts: Sequence(Value(dtype='string', id=None))
+
+    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
+
+
+class BaseBuilder(BaseModel):
+    features: Optional[Features] = None
+    dataset: Dict = Field(default_factory=dict, exclude=True)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def build_dataset(self) -> Union[Dataset, IterableDataset]:
+        raise NotImplementedError
+
+
+class BaseDatasetBuilder(BaseBuilder):
     features: Optional[Features] = None
     dataset: Dict = Field(default_factory=dict, exclude=True)
 
@@ -30,11 +60,8 @@ class BaseDatasetBuilder(BaseModel):
         if self.features is None:
             self.features = Features(BaseDatasetFeatures())
 
-    def build_dataset(self) -> IterableDataset:
-        raise NotImplementedError
 
-
-class SequenceTextDatasetBuilder(BaseModel):
+class SequenceTextDatasetBuilder(BaseBuilder):
     features: Optional[Features] = None
     dataset: Dict = Field(default_factory=dict, exclude=True)
 
@@ -44,31 +71,17 @@ class SequenceTextDatasetBuilder(BaseModel):
         if self.features is None:
             self.features = Features(SequenceTextDatasetFeatures())
 
-    def build_dataset(self) -> IterableDataset:
-        raise NotImplementedError
 
+class SequenceTextDatasetWithHNBuilder(BaseBuilder):
+    base_features: Optional[Features] = None
+    features: Optional[Features] = None
+    dataset: Dict = Field(default_factory=dict, exclude=True)
 
-if __name__ == '__main__':
-    from datasets import Dataset, Features, Value
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    features = Features({
-        'img': Value(dtype='string'),
-        'text': Value(dtype='string'),
-        'img_url': Value(dtype='string')
-    })
+    def model_post_init(self, __context: Any) -> None:
+        if self.base_features is None:
+            self.base_features = Features(BaseDatasetFeatures())
+        if self.features is None:
+            self.features = Features(BaseDatasetFeaturesWithHN())
 
-    dataset = Dataset.from_dict({
-        'img': ['image1.png', 'image2.png'],
-        'text': ['text1', 'text2'],
-        'img_url': ['http://example.com/img1', 'http://example.com/img2']
-    }, features=features)
-
-    new_data = {
-        'text': 'text3',
-        'img': 'image3.png',
-    }
-
-    # add the new data to the dataset
-    dataset = dataset.add_item(new_data)
-    print(dataset.data)
-    print(type(dataset[2]['img_url']))

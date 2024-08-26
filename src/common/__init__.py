@@ -1,13 +1,12 @@
-from .trainer import BaseTrainer
 from .config import TrainConfig, EvaluateConfig
 from .registry import registry
 from .evaluator import RetrievalEvaluator, BaseEvaluator
 from .collator import BaseCollator, SequenceTextCollator
 from .logger import setup_logger
 from .callbacks import CustomWandbCallback
+from .similarity import ImageSimilarityCalculator
 
 __all__ = [
-    "BaseTrainer",
     "RetrievalEvaluator",
     "BaseEvaluator",
     "TrainConfig",
@@ -16,5 +15,6 @@ __all__ = [
     "BaseCollator",
     "SequenceTextCollator",
     "setup_logger",
-    "CustomWandbCallback"
+    "CustomWandbCallback",
+    "ImageSimilarityCalculator"
 ]
