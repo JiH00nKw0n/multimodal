@@ -3,34 +3,19 @@ import logging
 from src.common import EvaluateConfig, registry, SequenceTextCollator
 from src.utils import load_json
 from src.tasks.base import BaseTask
-from datasets import concatenate_datasets, DatasetDict
+from datasets import DatasetDict
 from typing import Optional, Dict
 
-__all__ = ["EvaluateTask"]
+__all__ = [
+    "EvaluateTask",
+    "CustomModelEvaluateTask"
+]
 
 logger = logging.getLogger(__name__)
 
 
-@registry.register_task("EvaluateTask")
 class EvaluateTask(BaseTask):
     config: EvaluateConfig
-
-    def build_model(self, model_config: Optional[Dict] = None):
-        model_config = model_config \
-            if model_config is not None else self.config.model_config.copy()
-
-        model_cls = registry.get_model_class(model_config.model_cls)
-        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
-
-        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
-        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
-
-        config_dict = load_json(model_config.config_path)
-        model_cfg = model_cfg_cls(**config_dict)
-
-        model = model_cls.from_pretrained(**dict(model_config.config, **{"config": model_cfg}))
-
-        return model.eval()
 
     def build_datasets(self,
                        dataset_config: Optional[Dict] = None,
@@ -71,3 +56,25 @@ class EvaluateTask(BaseTask):
             data_collator=collator,
             **evaluator_config
         )
+
+
+@registry.register_task("CustomModelEvaluateTask")
+class CustomModelEvaluateTask(BaseTask):
+    config: EvaluateConfig
+
+    def build_model(self, model_config: Optional[Dict] = None):
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
+
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
+
+        config_dict = load_json(model_config.config_path)
+        model_cfg = model_cfg_cls(**config_dict)
+
+        model = model_cls.from_pretrained(**dict(model_config.config, **{"config": model_cfg}))
+
+        return model.eval()

@@ -3,7 +3,7 @@ from .train_task import TrainTask
 from .evaluate_task import EvaluateTask
 from src.common.registry import registry
 
-__all__ = ["BaseTask", "TrainTask"]
+__all__ = ["BaseTask", "TrainTask", "EvaluateTask"]
 
 
 def setup_task(config):

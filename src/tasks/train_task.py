@@ -5,28 +5,20 @@ from src.common import TrainConfig, registry, BaseCollator
 from src.tasks.base import BaseTask
 from typing import Optional, Dict, Union
 
-__all__ = ["IterableDatasetTrainTask"]
+__all__ = [
+    "TrainTask",
+    "PretrainedModelTrainTask",
+    "CustomModelTrainTask",
+    "DatasetTrainTask",
+    "IterableDatasetTrainTask",
+    "DatasetPretrainedModelTrainTask"
+]
 
 logger = logging.getLogger(__name__)
 
 
 class TrainTask(BaseTask):
     config: TrainConfig
-
-    def build_model(self, model_config: Optional[Dict] = None):
-        model_config = model_config \
-            if model_config is not None else self.config.model_config.copy()
-
-        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
-        model_cls = registry.get_model_class(model_config.model_cls)
-
-        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
-        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
-
-        model_cfg = model_cfg_cls(**model_config.config)
-        model = model_cls(model_cfg)
-
-        return model
 
     def build_trainer(self, trainer_config: Optional[Dict] = None):
         assert "runner" in self.config.run_config, "Trainer name must be provided."
@@ -49,7 +41,50 @@ class TrainTask(BaseTask):
         )
 
 
-@registry.register_task("DatasetTrainTask")
+class PretrainedModelTrainTask(TrainTask):
+    config: TrainConfig
+
+    def build_model(self, model_config: Optional[Dict] = None):
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+
+        model = model_cls.from_pretrained(model_config.config)
+
+        return model
+
+    def build_processor(self, processor_config: Optional[Dict] = None):
+        processor_config = processor_config \
+            if processor_config is not None else self.config.processor_config.copy()
+        processor_cls = registry.get_processor_class(processor_config.processor_cls)
+
+        assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
+
+        return processor_cls.from_pretrained(processor_config.config)
+
+
+class CustomModelTrainTask(TrainTask):
+    config: TrainConfig
+
+    def build_model(self, model_config: Optional[Dict] = None):
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
+        model_cls = registry.get_model_class(model_config.model_cls)
+
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
+
+        model_cfg = model_cfg_cls(**model_config.config)
+        model = model_cls(model_cfg)
+
+        return model
+
+
 class DatasetTrainTask(TrainTask):
     config: TrainConfig
 
@@ -76,7 +111,6 @@ class DatasetTrainTask(TrainTask):
         return concatenate_datasets(datasets)
 
 
-@registry.register_task("IterableDatasetTrainTask")
 class IterableDatasetTrainTask(TrainTask):
     config: TrainConfig
 
@@ -101,3 +135,8 @@ class IterableDatasetTrainTask(TrainTask):
             datasets.append(dataset)
 
         return interleave_datasets(datasets).with_format("torch")
+
+
+@registry.register_task("DatasetPretrainedModelTrainTask")
+class DatasetPretrainedModelTrainTask(PretrainedModelTrainTask, DatasetTrainTask):
+    config: TrainConfig
