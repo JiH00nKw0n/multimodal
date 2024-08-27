@@ -3,16 +3,16 @@ from typing import List, Dict, Optional, Union
 import torch
 from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
-from datasets import Dataset
+from datasets import Dataset, Image
 import multiprocessing
-from PIL import Image
+import PIL
 import requests
 from io import BytesIO
 
 
 def load_image(url):
     response = requests.get(url)
-    img = Image.open(BytesIO(response.content)).convert("RGB")
+    img = PIL.Image.open(BytesIO(response.content)).convert("RGB")
     return img
 
 
@@ -47,8 +47,9 @@ class ImageSimilarityCalculator:
                 range(0, len(dataset), self.batch_size), desc=f"Encoding {self.batch_size} batches",
                 disable=not show_progress_bar):
             url_list = dataset[start_index: start_index + self.batch_size]['images']
-            dataset = Dataset.from_dict({"image_url": url_list})
-            dataset = dataset.cast_column(column='image_url', feature=Image())
+            batch_images = Dataset.from_dict({"image_url": url_list}).cast_column(
+                column='image_url', feature=Image()
+            )['image_url']
 
             inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
 

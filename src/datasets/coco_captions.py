@@ -2,13 +2,31 @@ import os
 from typing import Union, List, Dict, Optional, Any
 
 import numpy as np
+from numpy import ndarray
 import spacy
-from spacy.tokens import Doc, Span, Token
+from spacy.tokens import Doc, Token
 from tqdm import tqdm
 
 from src.datasets.base import SequenceTextDatasetBuilder, SequenceTextDatasetWithHNBuilder
 from src.common import registry, ImageSimilarityCalculator
-from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset, Image
+from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
+
+
+def swap_spans(tokens: List[Token], list1: List[Token], list2: List[Token]) -> List[Token]:
+    """
+    두 명사구의 위치를 교환합니다.
+
+    Returns:
+    - List[Token]: 위치가 교환된 새로운 Token 리스트
+    """
+
+    start1, end1 = list1[0].i, list1[-1].i
+    start2, end2 = list2[0].i, list2[-1].i
+
+    if start1 < start2:
+        return tokens[:start1] + tokens[start2:end2] + tokens[end1:start2] + tokens[start1:end1] + tokens[end2:]
+    else:
+        return tokens[:start2] + tokens[start1:end1] + tokens[end2:start1] + tokens[start2:end2] + tokens[end1:]
 
 
 @registry.register_builder('COCOCaptionsIterableDatasetBuilder')
@@ -41,27 +59,6 @@ class COCOCaptionsDatasetBuilder(SequenceTextDatasetBuilder):
         return dataset
 
 
-def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
-    """
-    두 명사구의 위치를 교환합니다.
-
-    Parameters:
-    - tokens (List[Token]): Token 객체 리스트
-    - span1 (Span): 첫 번째 명사구
-    - span2 (Span): 두 번째 명사구
-
-    Returns:
-    - List[Token]: 위치가 교환된 새로운 Token 리스트
-    """
-    start1, end1 = span1.start, span1.end
-    start2, end2 = span2.start, span2.end
-
-    if start1 < start2:
-        return tokens[:start1] + tokens[start2:end2] + tokens[end1:start2] + tokens[start1:end1] + tokens[end2:]
-    else:
-        return tokens[:start2] + tokens[start1:end1] + tokens[end2:start1] + tokens[start2:end2] + tokens[end1:]
-
-
 @registry.register_builder('COCOCaptionsWithNegCLIPHNDatasetBuilder')
 class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
     split: Union[str, List[str]] = ['train', 'restval']
@@ -80,7 +77,7 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             self.rng = np.random.default_rng(self.seed)
 
     def build_dataset(self) -> Dataset:
-        if isinstance(self.split, list):
+        if type(self.split, list):
             dataset = concatenate_datasets(load_dataset(
                 "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
             ))
@@ -90,7 +87,6 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             )
         dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
-        # dataset = dataset.cast_column(column='images', feature=Image())
 
         dataset = self.negative_image_mining(dataset)
         dataset = self.negative_text_mining(dataset)
@@ -203,9 +199,9 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             a, b = self.rng.choice(group, 2, replace=False)
             new_tokens = list(doc)
 
-            if isinstance(a, Span) and isinstance(b, Span):  # 둘 다 명사구인 경우
+            if isinstance(a, ndarray) and isinstance(b, ndarray):  # 둘 다 명사구인 경우
                 # 명사구의 위치를 전체적으로 교환
-                new_tokens = self.swap_spans(new_tokens, a, b)
+                new_tokens = self.swap_spans(new_tokens, list(a), list(b))
             else:  # 단일 토큰끼리 또는 명사구와 명사가 아닌 토큰
                 new_tokens[a.i], new_tokens[b.i] = new_tokens[b.i], new_tokens[a.i]
 
