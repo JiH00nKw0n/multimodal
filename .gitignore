@@ -1,1 +1,11 @@
 .idea/
+scripts/_train.sh
+src/__pycache__
+src/common/__pycache__
+src/datasets/__pycache__
+src/models/__pycache__
+src/models/fusemix/__pycache__
+src/tasks/__pycache__
+src/trainers/__pycache__
+src/utils/__pycache__
+configs/train/_negclip.yml
