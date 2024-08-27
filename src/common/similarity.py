@@ -3,15 +3,18 @@ from typing import List, Dict, Optional, Union
 import torch
 from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
-from datasets import Dataset, Image
+from datasets import Dataset
 import multiprocessing
 import PIL
 import requests
 from io import BytesIO
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
 def load_image(url):
     response = requests.get(url)
+    response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
     img = PIL.Image.open(BytesIO(response.content)).convert("RGB")
     return img
 
@@ -19,14 +22,14 @@ def load_image(url):
 def process_batch(urls):
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         images = pool.map(load_image, urls)
-    return images
+    return [img for img in images if img is not None]
 
 
 class ImageSimilarityCalculator:
     def __init__(
             self,
             similarity_model_name_or_path: Optional[Union[str, os.PathLike]],
-            batch_size: int = 128,
+            batch_size: int = 1024,
             top_k: int = 3
     ):
         self.similarity_model_name_or_path = similarity_model_name_or_path
@@ -47,9 +50,7 @@ class ImageSimilarityCalculator:
                 range(0, len(dataset), self.batch_size), desc=f"Encoding {self.batch_size} batches",
                 disable=not show_progress_bar):
             url_list = dataset[start_index: start_index + self.batch_size]['images']
-            batch_images = Dataset.from_dict({"image_url": url_list}).cast_column(
-                column='image_url', feature=Image()
-            )['image_url']
+            batch_images = process_batch(url_list)
 
             inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
 

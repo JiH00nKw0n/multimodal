@@ -21,23 +21,39 @@ class SequenceTextDatasetFeatures(BaseModel):
 
 
 class BaseDatasetFeaturesWithHN(BaseDatasetFeatures):
-    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=False, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=False, strict=False, validate_assignment=False, arbitrary_types_allowed=True)
+    hard_images: Optional[Any] = None
+    hard_texts: Optional[Any] = None
+    neg_texts: Optional[Any] = None
+    hard_neg_texts: Optional[Any] = None
 
     def model_post_init(self, __context: Any) -> None:
-        self.hard_images = Sequence(Image())
-        self.hard_texts = Sequence(Value(dtype='string', id=None))
-        self.neg_texts = Sequence(Value(dtype='string', id=None))
-        self.hard_neg_texts = Sequence(Value(dtype='string', id=None))
+        self.hard_images = Sequence(Image()) \
+            if self.hard_images is None else self.hard_images
+        self.hard_texts = Sequence(Value(dtype='string', id=None)) \
+            if self.hard_texts is None else self.hard_texts
+        self.neg_texts = Sequence(Value(dtype='string', id=None)) \
+            if self.neg_texts is None else self.neg_texts
+        self.hard_neg_texts = Sequence(Value(dtype='string', id=None)) \
+            if self.hard_neg_texts is None else self.hard_neg_texts
 
 
 class SequenceTextDatasetFeaturesWithHN(SequenceTextDatasetFeatures):
-    model_config = ConfigDict(frozen=True, strict=True, validate_assignment=False, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=False, strict=False, validate_assignment=False, arbitrary_types_allowed=True)
+    hard_images: Optional[Any] = None
+    hard_texts: Optional[Any] = None
+    neg_texts: Optional[Any] = None
+    hard_neg_texts: Optional[Any] = None
 
     def model_post_init(self, __context: Any) -> None:
-        self.hard_images = Sequence(Image())
-        self.hard_texts = Sequence(Sequence(Value(dtype='string', id=None)))
-        self.neg_texts = Sequence(Sequence(Value(dtype='string', id=None)))
-        self.hard_neg_texts = Sequence(Sequence(Value(dtype='string', id=None)))
+        self.hard_images = Sequence(Image()) \
+            if self.hard_images is None else self.hard_images
+        self.hard_texts = Sequence(Sequence(Value(dtype='string', id=None))) \
+            if self.hard_texts is None else self.hard_texts
+        self.neg_texts = Sequence(Sequence(Value(dtype='string', id=None))) \
+            if self.neg_texts is None else self.neg_texts
+        self.hard_neg_texts = Sequence(Sequence(Value(dtype='string', id=None))) \
+            if self.hard_neg_texts is None else self.hard_neg_texts
 
 
 class BaseBuilder(BaseModel):
@@ -83,3 +99,6 @@ class SequenceTextDatasetWithHNBuilder(BaseBuilder):
         if self.features is None:
             self.features = Features(SequenceTextDatasetFeaturesWithHN())
 
+
+if __name__ == '__main__':
+    print(SequenceTextDatasetWithHNBuilder().features)

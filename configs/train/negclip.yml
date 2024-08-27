@@ -38,7 +38,7 @@ dataset:
       - 'restval'
 
 trainer:
-  output_dir: '/mnt/working/multimodal/_output'
+  output_dir: '/mnt/working/_output'
   learning_rate: &learning_rate 1.0e-5
   lr_scheduler_type: 'cosine'
   warmup_steps: &warmup_steps 50

@@ -45,7 +45,7 @@ def main() -> None:
     args = parse_args()
 
     # 파일 핸들러 생성
-    file_handler = logging.FileHandler(f'/mnt/working/multimodal/.log/fusemix_{job_id}.log/')
+    file_handler = logging.FileHandler(f'/mnt/working/.log/fusemix_{job_id}.log/')
     file_handler.setLevel(logging.DEBUG)
 
     # 로그 메시지 포맷 설정

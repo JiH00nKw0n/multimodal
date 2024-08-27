@@ -1,10 +1,9 @@
 import os
-from typing import Union, List, Dict, Optional, Any
+from typing import Union, List, Dict, Optional, Any, Callable
 
 import numpy as np
-from numpy import ndarray
 import spacy
-from spacy.tokens import Doc, Token
+from spacy.tokens import Doc, Token, Span
 from tqdm import tqdm
 
 from src.datasets.base import SequenceTextDatasetBuilder, SequenceTextDatasetWithHNBuilder
@@ -12,7 +11,7 @@ from src.common import registry, ImageSimilarityCalculator
 from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
 
 
-def swap_spans(tokens: List[Token], list1: List[Token], list2: List[Token]) -> List[Token]:
+def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
     """
     두 명사구의 위치를 교환합니다.
 
@@ -20,13 +19,69 @@ def swap_spans(tokens: List[Token], list1: List[Token], list2: List[Token]) -> L
     - List[Token]: 위치가 교환된 새로운 Token 리스트
     """
 
-    start1, end1 = list1[0].i, list1[-1].i
-    start2, end2 = list2[0].i, list2[-1].i
+    start1, end1 = span1.start, span1.end
+    start2, end2 = span2.start, span2.end
 
     if start1 < start2:
         return tokens[:start1] + tokens[start2:end2] + tokens[end1:start2] + tokens[start1:end1] + tokens[end2:]
     else:
         return tokens[:start2] + tokens[start1:end1] + tokens[end2:start1] + tokens[start2:end2] + tokens[end1:]
+
+
+def process_example(example: Dict, nlp: spacy.Language, generate_negative_captions: Callable) -> Dict:
+    original_texts = example['text']
+    neg_texts = []
+    has_zero_negative = False
+
+    for original_text in original_texts:
+        doc = nlp(original_text)
+        negative_captions = generate_negative_captions(doc)
+        if not negative_captions:
+            has_zero_negative = True
+            break
+        else:
+            neg_texts.append(negative_captions)
+
+    if has_zero_negative:
+        return {
+            'images': example['images'],
+            'text': example['text'],
+            'hard_texts': example['hard_texts'],
+            'hard_images': example['hard_images'],
+            'neg_texts': [],
+            'hard_neg_texts': []
+        }
+
+    hard_texts = example['hard_texts']
+    hard_neg_texts = []
+
+    for hard_text in hard_texts:
+        for hard_caption in hard_text:
+            doc = nlp(hard_caption)
+            hard_negative_captions = generate_negative_captions(doc)
+            if not hard_negative_captions:
+                has_zero_negative = True
+                break
+            else:
+                hard_neg_texts.append(hard_negative_captions)
+        if has_zero_negative:
+            return {
+                'images': example['images'],
+                'text': example['text'],
+                'hard_texts': example['hard_texts'],
+                'hard_images': example['hard_images'],
+                'neg_texts': [],
+                'hard_neg_texts': []
+            }
+
+    return {
+        'images': example['images'],
+        'text': example['text'],
+        'hard_texts': hard_texts,
+        'hard_images': example['hard_images'],
+        'neg_texts': neg_texts,
+        'hard_neg_texts': hard_neg_texts
+    }
 
 
 @registry.register_builder('COCOCaptionsIterableDatasetBuilder')
@@ -65,7 +120,7 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
     name: Optional[str] = 'coco'
     spacy_model_name: Optional[str] = "en_core_web_sm"
     similarity_model_name_or_path: Optional[Union[str, os.PathLike]] = 'openai/clip-vit-large-patch14'
-    batch_size: Optional[int] = 128
+    batch_size: Optional[int] = 1024
     image_top_k: Optional[int] = 3
     max_num_texts: Optional[int] = 5
     seed: Optional[int] = 2024
@@ -75,9 +130,10 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
         # numpy RandomState 초기화
         if self.rng is None:
             self.rng = np.random.default_rng(self.seed)
+        super().model_post_init(None)
 
     def build_dataset(self) -> Dataset:
-        if type(self.split, list):
+        if isinstance(self.split, list):
             dataset = concatenate_datasets(load_dataset(
                 "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
             ))
@@ -119,51 +175,23 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
 
     def negative_text_mining(self, dataset: Dataset) -> Dataset:
         nlp = spacy.load(self.spacy_model_name)
-        new_examples: List[Dict[str, str]] = []
 
-        for example in tqdm(dataset):
-            original_image = example['images']
-            original_texts = example['text']
-            has_zero_negative = False
-            neg_texts = []
-            for original_text in original_texts:
-                doc = nlp(original_text)
-                negative_captions = self.generate_negative_captions(doc)
+        # 시스템의 CPU 코어 수에 따라 num_proc를 설정
+        max_num_proc = os.cpu_count()
 
-                if not negative_captions:
-                    has_zero_negative = True
-                    break
-                else:
-                    neg_texts.append(negative_captions)
-            if has_zero_negative:
-                continue
-            hard_texts = example['hard_texts']
-            hard_images = example['hard_images']
-            hard_neg_texts = []
-            for hard_text in hard_texts:
-                for hard_caption in hard_text:
-                    doc = nlp(hard_caption)
-                    hard_negative_captions = self.generate_negative_captions(doc)
+        # Dataset의 각 요소에 대해 process_example 함수를 적용
+        dataset_with_neg_text = dataset.map(
+            lambda example: process_example(example, nlp, self.generate_negative_captions),
+            remove_columns=dataset.column_names,
+            num_proc=max_num_proc,  # 병렬로 처리할 프로세스 개수 설정
+            desc="Negative Text Mining"
+        )
 
-                    if not hard_negative_captions:
-                        has_zero_negative = True
-                        break
-                    else:
-                        hard_neg_texts.append(hard_negative_captions)
-                if has_zero_negative:
-                    break
-            if has_zero_negative:
-                continue
-            else:
-                new_examples.append({
-                    'images': original_image,
-                    'text': original_texts,
-                    'hard_texts': hard_texts,
-                    'hard_images': hard_images,
-                    'neg_texts': neg_texts,
-                    'hard_neg_texts': hard_neg_texts
-                })
-        return Dataset.from_list(new_examples)
+        # 필터링: 'neg_texts'와 'hard_neg_texts'가 빈 리스트가 아닌 경우만 유지
+        dataset_with_neg_text = dataset_with_neg_text.filter(
+            lambda x: len(x['neg_texts']) > 0 and len(x['hard_neg_texts']) > 0)
+
+        return dataset_with_neg_text
 
     def generate_negative_captions(self, doc: Doc) -> List[str]:
         # 명사구(Noun Phrases)는 3개 이상의 토큰으로 구성된 경우만 포함
@@ -196,12 +224,13 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
 
             group_index = self.rng.choice(len(eligible_groups))
             group = eligible_groups[group_index]
-            a, b = self.rng.choice(group, 2, replace=False)
+            indices = self.rng.choice(len(group), 2, replace=False)
+            a, b = group[indices[0]], group[indices[1]]
             new_tokens = list(doc)
 
-            if isinstance(a, ndarray) and isinstance(b, ndarray):  # 둘 다 명사구인 경우
+            if isinstance(a, Span) and isinstance(b, Span):  # 둘 다 명사구인 경우
                 # 명사구의 위치를 전체적으로 교환
-                new_tokens = self.swap_spans(new_tokens, list(a), list(b))
+                new_tokens = swap_spans(new_tokens, a, b)
             else:  # 단일 토큰끼리 또는 명사구와 명사가 아닌 토큰
                 new_tokens[a.i], new_tokens[b.i] = new_tokens[b.i], new_tokens[a.i]
 
