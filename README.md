@@ -7,6 +7,7 @@ Code base for implementing vision-language pre-training initialized from uni-mod
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 pip install -r requirements.txt
 pip install wandb transformers
+python -m spacy download en
 ```
 
 # Run
