@@ -60,10 +60,14 @@ class ImageSimilarityCalculator:
 
             all_embeddings.append(embeddings)  # Use append instead of extend
 
-        all_embeddings = torch.cat(all_embeddings, dim=0)  # Concatenate along the first dimension
+        # NOTE : Too heavy computation; set device with cpu
+        all_embeddings = torch.cat(all_embeddings, dim=0).cpu()  # Concatenate along the first dimension
 
         # 유사도 행렬 계산 (각 이미지 쌍 간의 코사인 유사도)
-        similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T)
+        # NOTE: Too heavy computation; Remove cache
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T)
 
         # 자기 자신과의 유사도를 큰 음수 값으로 설정하여 제외
         diag_indices = torch.arange(similarity_matrix.size(0))
@@ -75,4 +79,41 @@ class ImageSimilarityCalculator:
         # 결과를 딕셔너리 형태로 변환
         similarity_dict = {idx: top_k_indices[idx].tolist() for idx in range(similarity_matrix.size(0))}
 
+        return similarity_dict
+
+    def compute_image_similarity_batched(
+            self,
+            dataset: Dataset,
+            show_progress_bar: Optional[bool] = True
+    ) -> Dict[int, List[int]]:
+        all_embeddings = []
+        similarity_dict = dict()
+        for start_index in tqdm(
+                range(0, len(dataset), self.batch_size), desc=f"Encoding {self.batch_size} batches",
+                disable=not show_progress_bar):
+            url_list = dataset[start_index: start_index + self.batch_size]['images']
+            batch_images = process_batch(url_list)
+
+            inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
+
+            with torch.no_grad():
+                embeddings = self.model.get_image_features(**inputs)
+                embeddings = embeddings / embeddings.norm(dim=1, keepdim=True)
+
+            # 유사도 행렬 계산 (각 이미지 쌍 간의 코사인 유사도)
+            # TODO: Too heavy computation
+            torch.cuda.empty_cache()
+            with torch.no_grad():
+                similarity_matrix = torch.matmul(embeddings, embeddings.T)
+
+            # 자기 자신과의 유사도를 큰 음수 값으로 설정하여 제외
+            diag_indices = torch.arange(similarity_matrix.size(0))
+            similarity_matrix[diag_indices, diag_indices] = -float('inf')
+
+            # top_k 유사한 이미지 인덱스를 추출
+            top_k_indices = torch.topk(similarity_matrix, self.top_k, dim=1, largest=True).indices
+
+            # 결과를 딕셔너리 형태로 변환
+            for idx in range(similarity_matrix.size(0)):
+                similarity_dict[idx+start_index] = top_k_indices[idx].tolist()
         return similarity_dict
