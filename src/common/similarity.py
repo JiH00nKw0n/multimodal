@@ -29,7 +29,7 @@ class ImageSimilarityCalculator:
     def __init__(
             self,
             similarity_model_name_or_path: Optional[Union[str, os.PathLike]],
-            batch_size: int = 1024,
+            batch_size: int = 128,
             top_k: int = 3
     ):
         self.similarity_model_name_or_path = similarity_model_name_or_path

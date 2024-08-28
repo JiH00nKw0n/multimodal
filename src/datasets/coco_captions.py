@@ -121,7 +121,7 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
     name: Optional[str] = 'coco'
     spacy_model_name: Optional[str] = "en_core_web_sm"
     similarity_model_name_or_path: Optional[Union[str, os.PathLike]] = 'openai/clip-vit-large-patch14'
-    batch_size: Optional[int] = 1024
+    batch_size: Optional[int] = 128
     image_top_k: Optional[int] = 3
     max_num_texts: Optional[int] = 5
     seed: Optional[int] = 2024

@@ -78,3 +78,11 @@ class CustomModelEvaluateTask(BaseTask):
         model = model_cls.from_pretrained(**dict(model_config.config, **{"config": model_cfg}))
 
         return model.eval()
+
+
+@registry.register_task("CustomModelEvaluateVLCTask")
+class CustomModelEvaluateVLCTask(CustomModelEvaluateTask):
+    config: EvaluateConfig
+
+    def build_evaluator(self, evaluator_config: Optional[Dict] = None):
+        pass
