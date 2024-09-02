@@ -1,4 +1,4 @@
-from typing import TypeVar, Union
+from typing import TypeVar
 
 ProcessorType = TypeVar("ProcessorType", bound="ProcessorMixin")
 TaskType = TypeVar("TaskType", bound="BaseTask")
@@ -86,7 +86,7 @@ class Registry:
     @classmethod
     def register_evaluator(cls, name):
         def wrap(evaluator_cls) -> EvaluatorType:
-            from src.common.evaluator import BaseEvaluator
+            from src.evaluators.evaluator import BaseEvaluator
 
             assert issubclass(
                 evaluator_cls, BaseEvaluator
