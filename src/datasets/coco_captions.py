@@ -10,6 +10,7 @@ from src.datasets.base import SequenceTextDatasetBuilder, SequenceTextDatasetWit
 from src.common import registry, ImageSimilarityCalculator
 from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
 
+import torch
 
 def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
     """
@@ -146,7 +147,8 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
 
         dataset = self.negative_image_mining(dataset)
         dataset = self.negative_text_mining(dataset)
-        dataset = dataset.cast(self.features)
+        # NOTE : not to load image file!
+        # dataset = dataset.cast(self.features)
 
         return dataset
 
@@ -158,7 +160,9 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             batch_size=self.batch_size,
             top_k=self.image_top_k,
         )
+        torch.cuda.empty_cache()
         similarity_dict = image_similarity_calculator.compute_image_similarity(dataset=dataset)
+        # similarity_dict = image_similarity_calculator.compute_image_similarity_batched(dataset=dataset)
 
         for idx, example in tqdm(enumerate(dataset)):
             similar_indices = similarity_dict[idx]
