@@ -122,7 +122,7 @@ class COCOCaptionsWithMinedHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
 
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(
-            "yjkimstats / COCOCaption_mined", trust_remote_code=True, split=self.split
+            "yjkimstats/COCOCaption_mined", trust_remote_code=True, split=self.split
         )
         dataset = dataset.cast(self.features)
 
