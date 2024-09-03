@@ -1,5 +1,6 @@
 export HF_DATASETS_CACHE="TBD"
 export HF_HOME="TBD"
+export LOG_DIR="TBD"
 export TRAINING_VERBOSITY="detail"
 
 DEVICES=0

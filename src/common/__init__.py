@@ -1,7 +1,7 @@
 from .config import TrainConfig, EvaluateConfig
 from .registry import registry
 from .collator import BaseCollator, SequenceTextCollator
-from .logger import setup_logger
+from .logger import setup_logger, Logger
 from .callbacks import CustomWandbCallback
 from .similarity import ImageSimilarityCalculator
 
@@ -12,6 +12,7 @@ __all__ = [
     "BaseCollator",
     "SequenceTextCollator",
     "setup_logger",
+    "Logger",
     "CustomWandbCallback",
     "ImageSimilarityCalculator"
 ]

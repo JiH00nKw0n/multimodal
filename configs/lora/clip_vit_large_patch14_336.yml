@@ -1,0 +1,14 @@
+r: 16
+auto_mapping: null
+base_model_name_or_path: 'openai/clip-vit-large-patch14-336'
+bias: 'none'
+fan_in_fan_out: False
+init_lora_weights: True
+inference_mode: False
+layers_pattern: null
+layers_to_transform: null
+lora_alpha: 32
+lora_dropout: 0.1
+revision: null
+task_type: 'FEATURE_EXTRACTION'
+target_modules: 'all-linear'
