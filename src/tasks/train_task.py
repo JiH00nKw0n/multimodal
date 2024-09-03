@@ -1,9 +1,16 @@
+import os
+
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
 from transformers import TrainingArguments, AutoModel, AutoProcessor
 import logging
 from src.common import TrainConfig, registry, BaseCollator
+import yaml
 from src.tasks.base import BaseTask
 from typing import Optional, Dict, Union
+from peft import (
+    get_peft_model,
+    LoraConfig,
+)
 
 __all__ = [
     "TrainTask",
@@ -49,6 +56,15 @@ class PretrainedModelTrainTask(TrainTask):
             if model_config is not None else self.config.model_config.copy()
 
         model = AutoModel.from_pretrained(**model_config.config)
+        if model_config.lora is not None:
+            if isinstance(model_config.lora, str):
+                lora_config = yaml.safe_load(model_config.lora)
+            elif isinstance(model_config.lora, os.PathLike):
+                lora_config = yaml.safe_load(os.fspath(model_config.lora))
+            else:
+                raise TypeError
+            peft_config = LoraConfig(**lora_config)
+            model = get_peft_model(model, peft_config)
 
         return model
 
@@ -74,6 +90,21 @@ class CustomModelTrainTask(TrainTask):
 
         model_cfg = model_cfg_cls(**model_config.config)
         model = model_cls(model_cfg)
+
+        if model_config.lora is not None:
+            if isinstance(model_config.lora, Dict):
+                text_model_config_path = model_config.lora.pop('text_model', None)
+                image_model_config_path = model_config.lora.pop('text_model', None)
+            else:
+                raise TypeError
+            if text_model_config_path is not None:
+                text_model_lora_config = yaml.safe_load(text_model_config_path)
+                text_model_peft_config = LoraConfig(**text_model_lora_config)
+                model.text_model = get_peft_model(model.text_model, text_model_peft_config)
+            if image_model_config_path is not None:
+                image_model_lora_config = yaml.safe_load(image_model_config_path)
+                image_model_peft_config = LoraConfig(**image_model_lora_config)
+                model.image_model = get_peft_model(model.image_model, image_model_peft_config)
 
         return model
 
