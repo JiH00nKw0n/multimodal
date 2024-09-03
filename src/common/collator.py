@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-
+from src.common.registry import registry
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -50,6 +50,7 @@ def convert_to_rgb(image: Union[Image.Image, np.ndarray, torch.Tensor]) -> torch
 
 
 @dataclass
+@registry.register_collator('BaseCollator')
 class BaseCollator:
     """
     Customized collator inherited from DataCollatorWithPadding.
@@ -74,9 +75,6 @@ class BaseCollator:
     return_dict: Optional[bool] = True
     return_tensors: str = "pt"
 
-    def __post_init__(self):
-        pass
-
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
         processed_dict = {
             key: list(map(lambda d: convert_to_rgb(d[key]) if key == 'images' else d[key], inputs))
@@ -95,6 +93,7 @@ class BaseCollator:
 
 
 @dataclass
+@registry.register_collator('SequenceTextCollator')
 class SequenceTextCollator(BaseCollator):
 
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
@@ -113,6 +112,57 @@ class SequenceTextCollator(BaseCollator):
                         processed_dict[key].extend(value)
                     else:
                         raise TypeError()
+
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of
+        }
+
+        processor_input = dict(processed_dict, **kwargs)
+
+        return self.processor(**processor_input)
+
+
+@dataclass
+@registry.register_collator('SequenceTextWithHNCollator')
+class SequenceTextWithHNCollator(BaseCollator):
+    seed: Optional[int] = 2024
+    rng: Optional[np.random.Generator] = None
+
+    def __init__(self):
+        super().__init__()
+        if self.rng is None:
+            self.rng = np.random.default_rng(self.seed)
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        processed_dict = defaultdict(list)
+
+        images_list = []
+        text_list = []
+        hard_text_list = []
+        hard_image_list = []
+        neg_texts = []
+        hard_neg_texts = []
+
+        for _input in inputs:
+            images_list.append(convert_to_rgb(_input['images']))
+
+            text_idx = self.rng.integers(0, len(_input['text']))
+            text_list.append(_input['text'][text_idx])
+
+            hard_image_idx = self.rng.integers(0, len(_input['hard_images']))
+            hard_image_list.append(convert_to_rgb(_input['hard_images'][hard_image_idx]))
+
+            hard_text_idx = self.rng.integers(0, len(_input['hard_texts'][hard_image_idx]))
+            hard_text_list.append(_input['hard_texts'][hard_image_idx][hard_text_idx])
+
+            neg_texts.append(self.rng.choice(_input['neg_texts'][text_idx]))
+            hard_neg_texts.append(self.rng.choice(_input['hard_neg_texts'][hard_text_idx]))
+
+        processed_dict['images'] = [*images_list, *hard_image_list]
+        processed_dict['text'] = [*text_list, *hard_text_list, *neg_texts, *hard_neg_texts]
 
         kwargs = {
             'return_tensors': self.return_tensors,

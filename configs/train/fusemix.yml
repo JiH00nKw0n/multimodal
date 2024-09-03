@@ -1,6 +1,7 @@
 run:
   task: 'TrainTask'
   runner: 'BaseTrainer'
+  collator: 'BaseCollator'
   seed: 2024
   max_seq_length: 64
 

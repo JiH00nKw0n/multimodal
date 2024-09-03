@@ -1,6 +1,7 @@
 from typing import TypeVar
 
 ProcessorType = TypeVar("ProcessorType", bound="ProcessorMixin")
+CollatorType = TypeVar("CollatorType", bound="BaseCollator")
 TaskType = TypeVar("TaskType", bound="BaseTask")
 ModelType = TypeVar("ModelType", bound="PreTrainedModel")
 ModelConfigType = TypeVar("ModelConfigType", bound="PretrainedConfig")
@@ -14,6 +15,7 @@ class Registry:
         "builder_name_mapping": {},
         "task_name_mapping": {},
         "processor_name_mapping": {},
+        "collator_name_mapping": {},
         "model_name_mapping": {},
         "model_config_name_mapping": {},
         "trainer_name_mapping": {},
@@ -38,6 +40,27 @@ class Registry:
             cls.mapping["processor_name_mapping"][name] = processor_cls
 
             return processor_cls
+
+        return wrap
+
+    @classmethod
+    def register_collator(cls, name):
+        def wrap(collator_cls) -> CollatorType:
+            from src.common.collator import BaseCollator
+
+            assert issubclass(
+                collator_cls, BaseCollator
+            ), "All processors must inherit ProcessorMixin"
+
+            if name in cls.mapping["collator_name_mapping"]:
+                raise KeyError(
+                    "Name '{}' already registered for {}.".format(
+                        name, cls.mapping["collator_name_mapping"][name]
+                    )
+                )
+            cls.mapping["collator_name_mapping"][name] = collator_cls
+
+            return collator_cls
 
         return wrap
 
@@ -188,6 +211,10 @@ class Registry:
         return cls.mapping["processor_name_mapping"].get(name, None)
 
     @classmethod
+    def get_collator_class(cls, name):
+        return cls.mapping["collator_name_mapping"].get(name, None)
+
+    @classmethod
     def get_trainer_class(cls, name):
         return cls.mapping["trainer_name_mapping"].get(name, None)
 
@@ -218,6 +245,10 @@ class Registry:
     @classmethod
     def list_processors(cls):
         return sorted(cls.mapping["processor_name_mapping"].keys())
+
+    @classmethod
+    def list_collators(cls):
+        return sorted(cls.mapping["collator_name_mapping"].keys())
 
     @classmethod
     def list_datasets(cls):

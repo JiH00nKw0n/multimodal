@@ -46,7 +46,7 @@ class SequenceTextDatasetFeaturesWithHN(SequenceTextDatasetFeatures):
     hard_neg_texts: Optional[Any] = None
 
     def model_post_init(self, __context: Any) -> None:
-        self.hard_images = Sequence(Image()) \
+        self.hard_images = Sequence(Sequence(Image())) \
             if self.hard_images is None else self.hard_images
         self.hard_texts = Sequence(Sequence(Value(dtype='string', id=None))) \
             if self.hard_texts is None else self.hard_texts

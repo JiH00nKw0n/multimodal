@@ -1,6 +1,7 @@
 run:
   task: 'DatasetPretrainedModelTrainTask'
   runner: 'BaseTrainer'
+  collator: 'SequenceTextWithHNCollator'
   seed: 2024
   max_seq_length: 64
 

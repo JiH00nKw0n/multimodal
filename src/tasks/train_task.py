@@ -31,16 +31,23 @@ class TrainTask(BaseTask):
         assert "runner" in self.config.run_config, "Trainer name must be provided."
 
         trainer_name = self.config.run_config.runner
-        trainer = registry.get_trainer_class(trainer_name)
-        assert trainer is not None, "Task {} not properly registered.".format(trainer_name)
+        trainer_cls = registry.get_trainer_class(trainer_name)
+        assert trainer_cls is not None, "Trainer {} not properly registered.".format(trainer_name)
 
         trainer_config = trainer_config if trainer_config is not None else self.config.trainer_config
-        collator = BaseCollator(
+
+        collator_name = self.config.run_config.collator
+        collator_cls = registry.get_collator_class(collator_name)
+
+        assert collator_cls is not None, "Collator {} not properly registered.".format(collator_name)
+
+        collator = collator_cls(
             processor=self.build_processor(), max_length=self.config.run_config.max_seq_length
         )
+
         train_dataset = self.build_datasets()
 
-        return trainer(
+        return trainer_cls(
             model=self.build_model(),
             args=TrainingArguments(**trainer_config),
             train_dataset=train_dataset,
