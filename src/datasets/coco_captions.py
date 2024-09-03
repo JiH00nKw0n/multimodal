@@ -12,6 +12,7 @@ from datasets import concatenate_datasets, load_dataset, Dataset, IterableDatase
 
 import torch
 
+
 def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
     """
     두 명사구의 위치를 교환합니다.
@@ -124,7 +125,7 @@ class COCOCaptionsWithMinedHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
         dataset = load_dataset(
             "yjkimstats/COCOCaption_mined", trust_remote_code=True, split=self.split
         )
-        dataset = dataset.cast(self.features)
+        # dataset = dataset.cast(self.features)
 
         return dataset
 

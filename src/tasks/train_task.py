@@ -3,10 +3,11 @@ import os
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
 from transformers import TrainingArguments, AutoModel, AutoProcessor
 import logging
-from src.common import TrainConfig, registry, BaseCollator
+from src.common import TrainConfig, registry
+from src.utils.utils import load_yml
 import yaml
 from src.tasks.base import BaseTask
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 from peft import (
     get_peft_model,
     LoraConfig,
@@ -65,15 +66,21 @@ class PretrainedModelTrainTask(TrainTask):
         model = AutoModel.from_pretrained(**model_config.config)
         if model_config.lora is not None:
             if isinstance(model_config.lora, str):
-                lora_config = yaml.safe_load(model_config.lora)
+                lora_config = load_yml(model_config.lora)
             elif isinstance(model_config.lora, os.PathLike):
-                lora_config = yaml.safe_load(os.fspath(model_config.lora))
+                lora_config = load_yml(os.fspath(model_config.lora))
             else:
                 raise TypeError
             peft_config = LoraConfig(**lora_config)
             model = get_peft_model(model, peft_config)
 
-        return model
+            logger.info(f"{repr(model)}")
+            trainable_params, all_param = model.get_nb_trainable_parameters()
+
+            logger.info(
+                f'ALL PARAM: {all_param} / TRAINABLE PARAM: {trainable_params} / RATIO: {trainable_params / all_param * 100}%')
+
+        return model.to('cuda')
 
     def build_processor(self, processor_config: Optional[Dict] = None):
         processor_config = processor_config \
@@ -113,7 +120,7 @@ class CustomModelTrainTask(TrainTask):
                 image_model_peft_config = LoraConfig(**image_model_lora_config)
                 model.image_model = get_peft_model(model.image_model, image_model_peft_config)
 
-        return model
+        return model.to('cuda')
 
 
 class DatasetTrainTask(TrainTask):

@@ -3,7 +3,8 @@ from .conceptual_captions import ConceptualCaptionsDatasetBuilder
 from .coco_captions import (
     COCOCaptionsDatasetBuilder,
     COCOCaptionsIterableDatasetBuilder,
-    COCOCaptionsWithNegCLIPHNDatasetBuilder
+    COCOCaptionsWithHNDatasetBuilder,
+    COCOCaptionsWithMinedHNDatasetBuilder,
 )
 from .sbu_captions import SBUCaptionsDatasetBuilder
 
@@ -12,5 +13,9 @@ __all__ = [
     'BaseDatasetBuilder',
     'SequenceTextDatasetBuilder',
     'ConceptualCaptionsDatasetBuilder',
-    'SBUCaptionsDatasetBuilder'
+    'SBUCaptionsDatasetBuilder',
+    'COCOCaptionsDatasetBuilder',
+    'COCOCaptionsIterableDatasetBuilder',
+    'COCOCaptionsWithHNDatasetBuilder',
+    'COCOCaptionsWithMinedHNDatasetBuilder',
 ]

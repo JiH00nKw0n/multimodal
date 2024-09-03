@@ -46,7 +46,7 @@ class SequenceTextDatasetFeaturesWithHN(SequenceTextDatasetFeatures):
     hard_neg_texts: Optional[Any] = None
 
     def model_post_init(self, __context: Any) -> None:
-        self.hard_images = Sequence(Sequence(Image())) \
+        self.hard_images = Sequence(Image()) \
             if self.hard_images is None else self.hard_images
         self.hard_texts = Sequence(Sequence(Value(dtype='string', id=None))) \
             if self.hard_texts is None else self.hard_texts
@@ -89,7 +89,6 @@ class SequenceTextDatasetBuilder(BaseBuilder):
 
 
 class SequenceTextDatasetWithHNBuilder(BaseBuilder):
-    base_features: Optional[Features] = None
     features: Optional[Features] = None
     dataset: Dict = Field(default_factory=dict, exclude=True)
 
@@ -98,7 +97,3 @@ class SequenceTextDatasetWithHNBuilder(BaseBuilder):
     def model_post_init(self, __context: Any) -> None:
         if self.features is None:
             self.features = Features(SequenceTextDatasetFeaturesWithHN())
-
-
-if __name__ == '__main__':
-    print(SequenceTextDatasetWithHNBuilder().features)

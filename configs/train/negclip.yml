@@ -1,6 +1,6 @@
 run:
   task: 'DatasetPretrainedModelTrainTask'
-  runner: 'BaseTrainer'
+  runner: 'NegCLIPTrainer'
   collator: 'SequenceTextWithHNCollator'
   seed: 2024
   max_seq_length: 64
@@ -20,8 +20,7 @@ processor:
 
 dataset:
   COCOCaptionsWithMinedHNDatasetBuilder:
-    split:
-      - 'train'
+    split: 'train'
 
 trainer:
   output_dir: '/mnt/working/_output'
@@ -32,7 +31,7 @@ trainer:
   max_steps : &max_steps 500
   save_steps: 50
   logging_steps : 1
-  evaluation_strategy: 'no' # 'steps', 'epochs', 'no'
+  eval_strategy: 'no' # 'steps', 'epochs', 'no'
 
   num_train_epochs: 1
   per_device_train_batch_size : &per_device_batch_size 1024
