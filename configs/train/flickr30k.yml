@@ -1,0 +1,33 @@
+run:
+  task: 'EvaluateTask'
+  runner: 'RetrievalEvaluator'
+  seed: 2024
+  max_seq_length: 64
+
+  device: "cuda"
+  world_size: 1
+  distributed: False
+
+model:
+  model_cls: 'FuseMixModel'
+  config_cls: 'FuseMixConfig'
+  config_path: '/mnt/working/_output/checkpoint-125/config.json'
+  config:
+    pretrained_model_name_or_path: '/mnt/working/_output/checkpoint-125'
+
+processor:
+  processor_cls: "FuseMixProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'BAAI/bge-large-en-v1.5'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-giant'
+
+dataset:
+  'Flickr30kDatasetBuilder':
+    split: 'test'
+
+evaluator:
+  k_values:
+    - 1
+    - 5
+    - 10
+  output_dir: '/mnt/working/_result/checkpoint-125'
