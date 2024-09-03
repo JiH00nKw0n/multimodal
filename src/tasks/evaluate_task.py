@@ -79,10 +79,3 @@ class CustomModelEvaluateTask(BaseTask):
 
         return model.eval()
 
-
-@registry.register_task("CustomModelEvaluateVLCTask")
-class CustomModelEvaluateVLCTask(CustomModelEvaluateTask):
-    config: EvaluateConfig
-
-    def build_evaluator(self, evaluator_config: Optional[Dict] = None):
-        pass
