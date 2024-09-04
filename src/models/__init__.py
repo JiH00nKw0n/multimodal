@@ -7,7 +7,9 @@ from transformers import CLIPModel, CLIPConfig, CLIPProcessor
 __all__ = [
     "BaseConfig",
     "BaseModel",
-    "Base"
+    "BaseModelWithFrozenImageText",
+    "BaseModelWithFrozenImage",
+    "BaseModelWithFrozenText",
     "BaseProcessor",
     "FuseMixConfig",
     "FuseMixModel",
