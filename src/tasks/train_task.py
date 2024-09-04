@@ -1,5 +1,6 @@
 import os
 
+import omegaconf
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
 from transformers import TrainingArguments, AutoModel, AutoProcessor
 import logging
@@ -106,17 +107,17 @@ class CustomModelTrainTask(TrainTask):
         model = model_cls(model_cfg)
 
         if model_config.lora is not None:
-            if isinstance(model_config.lora, Dict):
+            if isinstance(model_config.lora, omegaconf.dictconfig.DictConfig):
                 text_model_config_path = model_config.lora.pop('text_model', None)
                 image_model_config_path = model_config.lora.pop('image_model', None)
             else:
                 raise TypeError
             if text_model_config_path is not None:
-                text_model_lora_config = yaml.safe_load(text_model_config_path)
+                text_model_lora_config = load_yml(text_model_config_path)
                 text_model_peft_config = LoraConfig(**text_model_lora_config)
                 model.text_model = get_peft_model(model.text_model, text_model_peft_config)
             if image_model_config_path is not None:
-                image_model_lora_config = yaml.safe_load(image_model_config_path)
+                image_model_lora_config = load_yml(image_model_config_path)
                 image_model_peft_config = LoraConfig(**image_model_lora_config)
                 model.image_model = get_peft_model(model.image_model, image_model_peft_config)
 
@@ -177,4 +178,9 @@ class IterableDatasetTrainTask(TrainTask):
 
 @registry.register_task("DatasetPretrainedModelTrainTask")
 class DatasetPretrainedModelTrainTask(PretrainedModelTrainTask, DatasetTrainTask):
+    config: TrainConfig
+
+
+@registry.register_task("DatasetCustomModelTrainTask")
+class DatasetCustomModelTrainTask(CustomModelTrainTask, DatasetTrainTask):
     config: TrainConfig

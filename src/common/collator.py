@@ -155,7 +155,7 @@ class SequenceTextWithHNCollator(BaseCollator):
         neg_texts = []
         hard_neg_texts = []
 
-        for _input in tqdm(inputs):
+        for _input in inputs:
             all_images_urls.append(_input['images'])
 
             text_idx = self.rng.integers(0, len(_input['text']))

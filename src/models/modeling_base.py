@@ -17,6 +17,7 @@ logger = logging.get_logger(__name__)
 
 __all__ = [
     "BaseModel", "BaseOutput", "BasePreTrainedModel",
+    "BaseModelWithFrozenText", "BaseModelWithFrozenImage", "BaseModelWithFrozenImageText",
     "BASE_TEXT_INPUTS_DOCSTRING", "BASE_VISION_INPUTS_DOCSTRING", "BASE_INPUTS_DOCSTRING",
     "base_loss",
 ]
@@ -407,7 +408,7 @@ class BaseModel(BasePreTrainedModel):
 
 @registry.register_model("BaseModelWithFrozenText")
 @add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenText(BasePreTrainedModel):
+class BaseModelWithFrozenText(BaseModel):
     config_class = BaseConfig
 
     def __init__(self, config: BaseConfig):
@@ -420,7 +421,7 @@ class BaseModelWithFrozenText(BasePreTrainedModel):
 
 @registry.register_model("BaseModelWithFrozenImage")
 @add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenImage(BasePreTrainedModel):
+class BaseModelWithFrozenImage(BaseModel):
     config_class = BaseConfig
 
     def __init__(self, config: BaseConfig):
@@ -433,7 +434,7 @@ class BaseModelWithFrozenImage(BasePreTrainedModel):
 
 @registry.register_model("BaseModelWithFrozenImageText")
 @add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenImageText(BasePreTrainedModel):
+class BaseModelWithFrozenImageText(BaseModel):
     config_class = BaseConfig
 
     def __init__(self, config: BaseConfig):

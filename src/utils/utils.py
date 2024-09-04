@@ -48,7 +48,7 @@ def load_image(url: str) -> Image:
     return img
 
 
-def process_batch(urls: List[str]) -> List[Image]:
+def process_batch(urls: List[str]) -> List[Any]:
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
         images = pool.map(load_image, urls)
     return [img for img in images if img is not None]
