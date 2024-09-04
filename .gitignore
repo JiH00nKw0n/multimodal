@@ -13,3 +13,4 @@ configs/train/_negclip.yml
 data/
 push_to_hub.py
 scripts/push.sh
+scripts/train/_train.sh
