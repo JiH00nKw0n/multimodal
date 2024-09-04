@@ -38,6 +38,9 @@ from PIL import Image
 import requests
 from io import BytesIO
 from tenacity import retry, stop_after_attempt, wait_fixed
+from concurrent.futures import ThreadPoolExecutor
+import aiohttp
+import asyncio
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
@@ -47,11 +50,34 @@ def load_image(url: str) -> Image:
     img = Image.open(BytesIO(response.content)).convert("RGB")
     return img
 
-
 def process_batch(urls: List[str]) -> List[Any]:
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        images = pool.map(load_image, urls)
+    with ThreadPoolExecutor(max_workers=512) as executor:
+        images = list(executor.map(load_image, urls))
     return [img for img in images if img is not None]
+
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+async def fetch_image_bytes(session, url: str) -> bytes:
+    async with session.get(url) as response:
+        response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
+        return await response.read()
+
+# 이미지를 멀티스레딩으로 처리하는 함수
+def process_image(image_bytes: bytes) -> Image:
+    img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    return img
+
+# 비동기 + 스레딩 결합한 배치 처리 함수
+async def process_batch_async(urls: List[str]) -> List[Any]:
+    async with aiohttp.ClientSession() as session:
+        # 1. 비동기로 네트워크에서 이미지 데이터를 가져옴
+        image_bytes_tasks = [fetch_image_bytes(session, url) for url in urls]
+        image_bytes_results = await asyncio.gather(*image_bytes_tasks)
+
+        # 2. ThreadPoolExecutor를 사용하여 이미지 처리 병렬화
+        with ThreadPoolExecutor() as executor:
+            images = list(executor.map(process_image, image_bytes_results))
+
+    return images
 
 
 def _get_vector_norm(tensor: torch.Tensor) -> torch.Tensor:

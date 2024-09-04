@@ -11,8 +11,8 @@ from typing import Union, List, Dict, Optional, TypeVar, Any
 from PIL import Image
 from transformers.utils import PaddingStrategy
 from transformers import ProcessorMixin
-from tqdm import tqdm
-from src.utils.utils import process_batch
+from src.utils.utils import process_batch_async
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -170,14 +170,12 @@ class SequenceTextWithHNCollator(BaseCollator):
             neg_texts.append(self.rng.choice(_input['neg_texts'][text_idx]))
             hard_neg_texts.append(self.rng.choice(_input['hard_neg_texts'][hard_text_idx]))
 
-        # 멀티프로세싱을 사용하여 이미지 로드 및 RGB 변환
-        images_list = process_batch(all_images_urls)
+        images_list = asyncio.run(process_batch_async(all_images_urls))
         images_list = [convert_to_rgb(img) for img in images_list]
 
-        hard_image_list = process_batch(all_hard_images_urls)
+        hard_image_list = asyncio.run(process_batch_async(all_hard_images_urls))
         hard_image_list = [convert_to_rgb(img) for img in hard_image_list]
 
-        # 결과 저장
         processed_dict['images'] = [*images_list, *hard_image_list]
         processed_dict['text'] = [*text_list, *hard_text_list, *neg_texts, *hard_neg_texts]
 
