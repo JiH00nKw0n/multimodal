@@ -1,3 +1,6 @@
+export DATA_DIR="YOUR-DATA-DIR" # Add for dataset caching
+export LOG_DIR="YOUR-LOG-DIR"
+
 # CREPE
 negative_types=(swap negate atom)    
 complexities=(4 5 6 7 8 9 10 11 12)
