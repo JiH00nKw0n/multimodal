@@ -108,7 +108,7 @@ class CustomModelTrainTask(TrainTask):
         if model_config.lora is not None:
             if isinstance(model_config.lora, Dict):
                 text_model_config_path = model_config.lora.pop('text_model', None)
-                image_model_config_path = model_config.lora.pop('text_model', None)
+                image_model_config_path = model_config.lora.pop('image_model', None)
             else:
                 raise TypeError
             if text_model_config_path is not None:

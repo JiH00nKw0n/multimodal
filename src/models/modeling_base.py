@@ -215,8 +215,12 @@ class BaseModel(BasePreTrainedModel):
         self.text_embed_dim = text_config.hidden_size
         self.vision_embed_dim = vision_config.hidden_size
 
-        self.visual_projection = nn.Linear(self.vision_embed_dim, self.projection_dim, bias=False)
-        self.text_projection = nn.Linear(self.text_embed_dim, self.projection_dim, bias=False)
+        self.visual_projection = nn.Linear(
+            self.vision_embed_dim, self.projection_dim, bias=False
+        ).to(dtype=config.torch_dtype)
+        self.text_projection = nn.Linear(
+            self.text_embed_dim, self.projection_dim, bias=False
+        ).to(dtype=config.torch_dtype)
         self.logit_scale = nn.Parameter(torch.tensor(self.config.logit_scale_init_value))
 
         # Initialize weights and apply final processing
