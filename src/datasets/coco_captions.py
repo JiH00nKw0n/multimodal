@@ -11,6 +11,7 @@ from src.common import registry, ImageSimilarityCalculator
 from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
 
 import torch
+from glob import glob
 
 
 def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
@@ -149,21 +150,27 @@ class COCOCaptionsWithHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
         super().model_post_init(None)
 
     def build_dataset(self) -> Dataset:
-        if isinstance(self.split, list):
-            dataset = concatenate_datasets(load_dataset(
-                "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
-            ))
+        # TODO: Load from cache if exists
+        cache_list = list(map(lambda x: x.split('/')[-1], glob(f'{os.getenv("DATA_DIR")}/*.parquet')))
+        
+        if f'{self.cache_file_name}.parquet' in cache_list:
+            dataset = load_dataset("parquet", data_files={'train': f'{self.cache_file_name}.parquet'})
         else:
-            dataset = load_dataset(
-                "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
-            )
-        dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
-        dataset = dataset.select_columns(['images', 'text'])
+            if isinstance(self.split, list):
+                dataset = concatenate_datasets(load_dataset(
+                    "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
+                ))
+            else:
+                dataset = load_dataset(
+                    "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
+                )
+            dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
+            dataset = dataset.select_columns(['images', 'text'])
 
-        dataset = self.negative_image_mining(dataset)
-        dataset = self.negative_text_mining(dataset)
-        # NOTE : not to load image file!
-        # dataset = dataset.cast(self.features)
+            dataset = self.negative_image_mining(dataset)
+            dataset = self.negative_text_mining(dataset)
+            # NOTE : not to load image file!
+            # dataset = dataset.cast(self.features)
 
         return dataset
 
