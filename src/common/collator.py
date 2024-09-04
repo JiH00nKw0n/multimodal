@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-
+from src.common.registry import registry
 import numpy as np
 import torch
 from dataclasses import dataclass
@@ -11,6 +11,8 @@ from typing import Union, List, Dict, Optional, TypeVar, Any
 from PIL import Image
 from transformers.utils import PaddingStrategy
 from transformers import ProcessorMixin
+from tqdm import tqdm
+from src.utils.utils import process_batch
 
 logger = logging.getLogger(__name__)
 
@@ -64,37 +66,42 @@ class BaseCollator:
         return_tensors (`str`, *optional*, defaults to `"pt"`):
             The type of Tensor to return. Allowable values are "np", "pt" and "tf".
     """
-
     processor: ProcessorType
     padding: Union[bool, str, PaddingStrategy] = 'max_length'
     truncation: bool = True
     max_length: Optional[int] = 64
     pad_to_multiple_of: Optional[int] = None
-    return_loss: Optional[bool] = True
-    return_dict: Optional[bool] = True
     return_tensors: str = "pt"
 
     def __post_init__(self):
         pass
 
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        raise NotImplementedError
+
+
+@dataclass
+@registry.register_collator('Collator')
+class Collator(BaseCollator):
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
         processed_dict = {
             key: list(map(lambda d: convert_to_rgb(d[key]) if key == 'images' else d[key], inputs))
             for key in inputs[0].keys()
         }
-        kwargs = {'return_tensors': self.return_tensors,
-                  'padding': self.padding,
-                  'truncation': self.truncation,
-                  'pad_to_multiple_of': self.pad_to_multiple_of,
-                  'return_loss': self.return_loss,
-                  'return_dict': self.return_dict
-                  }
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of,
+        }
         processor_input = dict(processed_dict, **kwargs)
 
         return self.processor(**processor_input)
 
 
 @dataclass
+@registry.register_collator('SequenceTextCollator')
 class SequenceTextCollator(BaseCollator):
 
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
@@ -118,9 +125,68 @@ class SequenceTextCollator(BaseCollator):
             'return_tensors': self.return_tensors,
             'padding': self.padding,
             'truncation': self.truncation,
-            'pad_to_multiple_of': self.pad_to_multiple_of
+            'pad_to_multiple_of': self.pad_to_multiple_of,
         }
+        processor_input = dict(processed_dict, **kwargs)
 
+        return self.processor(**processor_input)
+
+
+@dataclass
+@registry.register_collator('SequenceTextWithHNCollator')
+class SequenceTextWithHNCollator(BaseCollator):
+    seed: Optional[int] = 2024
+    rng: Optional[np.random.Generator] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.rng is None:
+            self.rng = np.random.default_rng(self.seed)
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        processed_dict = defaultdict(list)
+
+        # 모든 이미지 URL을 리스트에 담기
+        all_images_urls = []
+        all_hard_images_urls = []
+
+        text_list = []
+        hard_text_list = []
+        neg_texts = []
+        hard_neg_texts = []
+
+        for _input in tqdm(inputs):
+            all_images_urls.append(_input['images'])
+
+            text_idx = self.rng.integers(0, len(_input['text']))
+            text_list.append(_input['text'][text_idx])
+
+            hard_image_idx = self.rng.integers(0, len(_input['hard_images']))
+            all_hard_images_urls.append(_input['hard_images'][hard_image_idx])
+
+            hard_text_idx = self.rng.integers(0, len(_input['hard_texts'][hard_image_idx]))
+            hard_text_list.append(_input['hard_texts'][hard_image_idx][hard_text_idx])
+
+            neg_texts.append(self.rng.choice(_input['neg_texts'][text_idx]))
+            hard_neg_texts.append(self.rng.choice(_input['hard_neg_texts'][hard_text_idx]))
+
+        # 멀티프로세싱을 사용하여 이미지 로드 및 RGB 변환
+        images_list = process_batch(all_images_urls)
+        images_list = [convert_to_rgb(img) for img in images_list]
+
+        hard_image_list = process_batch(all_hard_images_urls)
+        hard_image_list = [convert_to_rgb(img) for img in hard_image_list]
+
+        # 결과 저장
+        processed_dict['images'] = [*images_list, *hard_image_list]
+        processed_dict['text'] = [*text_list, *hard_text_list, *neg_texts, *hard_neg_texts]
+
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of,
+        }
         processor_input = dict(processed_dict, **kwargs)
 
         return self.processor(**processor_input)

@@ -399,3 +399,46 @@ class BaseModel(BasePreTrainedModel):
             text_model_output=text_outputs,
             vision_model_output=vision_outputs,
         )
+
+
+@registry.register_model("BaseModelWithFrozenText")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenText(BasePreTrainedModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the text Model
+        for param in self.text_model.parameters():
+            param.requires_grad = False
+
+
+@registry.register_model("BaseModelWithFrozenImage")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenImage(BasePreTrainedModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the image Model
+        for param in self.vision_model.parameters():
+            param.requires_grad = False
+
+
+@registry.register_model("BaseModelWithFrozenImageText")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenImageText(BasePreTrainedModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the image Model
+        for param in self.vision_model.parameters():
+            param.requires_grad = False
+
+        # Lock the text Model
+        for param in self.text_model.parameters():
+            param.requires_grad = False

@@ -38,7 +38,7 @@ class EvaluateTask(BaseTask):
         return dataset_dict
 
     def build_evaluator(self, evaluator_config: Optional[Dict] = None):
-        assert "runner" in self.config.run_config, "Trainer name must be provided."
+        assert "runner" in self.config.run_config, "Evaluator name must be provided."
 
         evaluator_name = self.config.run_config.runner
         evaluator = registry.get_evaluator_class(evaluator_name)
@@ -79,10 +79,3 @@ class CustomModelEvaluateTask(BaseTask):
 
         return model.eval()
 
-
-@registry.register_task("CustomModelEvaluateVLCTask")
-class CustomModelEvaluateVLCTask(CustomModelEvaluateTask):
-    config: EvaluateConfig
-
-    def build_evaluator(self, evaluator_config: Optional[Dict] = None):
-        pass

@@ -4,25 +4,7 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
 from datasets import Dataset
-import multiprocessing
-import PIL
-import requests
-from io import BytesIO
-from tenacity import retry, stop_after_attempt, wait_fixed
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
-def load_image(url):
-    response = requests.get(url)
-    response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
-    img = PIL.Image.open(BytesIO(response.content)).convert("RGB")
-    return img
-
-
-def process_batch(urls):
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        images = pool.map(load_image, urls)
-    return [img for img in images if img is not None]
+from src.utils.utils import process_batch
 
 
 class ImageSimilarityCalculator:

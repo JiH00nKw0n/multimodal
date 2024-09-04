@@ -17,7 +17,7 @@ import shutil
 import urllib
 import urllib.error
 import urllib.request
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, List
 from urllib.parse import urlparse
 
 import numpy as np
@@ -32,6 +32,26 @@ from torchvision.datasets.utils import (
     download_file_from_google_drive,
     extract_archive,
 )
+from typing import Optional, Union
+import multiprocessing
+from PIL import Image
+import requests
+from io import BytesIO
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+def load_image(url: str) -> Image:
+    response = requests.get(url)
+    response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
+    img = Image.open(BytesIO(response.content)).convert("RGB")
+    return img
+
+
+def process_batch(urls: List[str]) -> List[Image]:
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        images = pool.map(load_image, urls)
+    return [img for img in images if img is not None]
 
 
 def _get_vector_norm(tensor: torch.Tensor) -> torch.Tensor:

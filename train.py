@@ -7,7 +7,7 @@ import wandb
 import logging
 
 from src.utils import get_rank, init_distributed_mode, now, load_yml
-from src.common import TrainConfig, setup_logger, CustomWandbCallback
+from src.common import TrainConfig, setup_logger, CustomWandbCallback, Logger
 import src.tasks as tasks
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def main() -> None:
     args = parse_args()
 
     # 파일 핸들러 생성
-    file_handler = logging.FileHandler(f'/mnt/working/.log/fusemix_{job_id}.log/')
+    file_handler = logging.FileHandler(f'/mnt/working/.log/negclip_{job_id}.log/')
     file_handler.setLevel(logging.DEBUG)
 
     # 로그 메시지 포맷 설정

@@ -89,7 +89,6 @@ class SequenceTextDatasetBuilder(BaseBuilder):
 
 
 class SequenceTextDatasetWithHNBuilder(BaseBuilder):
-    base_features: Optional[Features] = None
     features: Optional[Features] = None
     dataset: Dict = Field(default_factory=dict, exclude=True)
 
@@ -98,7 +97,3 @@ class SequenceTextDatasetWithHNBuilder(BaseBuilder):
     def model_post_init(self, __context: Any) -> None:
         if self.features is None:
             self.features = Features(SequenceTextDatasetFeaturesWithHN())
-
-
-if __name__ == '__main__':
-    print(SequenceTextDatasetWithHNBuilder().features)
