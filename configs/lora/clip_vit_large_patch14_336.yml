@@ -10,7 +10,6 @@ layers_to_transform: null
 lora_alpha: 32
 lora_dropout: 0.1
 revision: null
-#task_type: 'FEATURE_EXTRACTION'
 target_modules:
     - 'q_proj'
     - 'k_proj'

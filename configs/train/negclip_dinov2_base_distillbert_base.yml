@@ -6,14 +6,16 @@ run:
   max_seq_length: 64
 
 model:
-  model_cls: 'BaseModelWithFrozenImage'
+  model_cls: 'BaseModel'
   config_cls: 'BaseConfig'
   config:
     text_pretrained_model_name_or_path: &text_pretrained_model_name_or_path 'distilbert/distilbert-base-uncased'
     vision_pretrained_model_name_or_path: &vision_pretrained_model_name_or_path 'facebook/dinov2-base'
     pool_type: 'cls'
+    torch_dtype: 'fp16'
   lora:
     text_model: '/mnt/working/multimodal/configs/lora/distillbert_base.yml'
+    vision_model: '/mnt/working/multimodal/configs/lora/dinov2_base.yml'
 
 processor:
   processor_cls: "BaseProcessor"

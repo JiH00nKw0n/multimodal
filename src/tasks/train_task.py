@@ -109,17 +109,17 @@ class CustomModelTrainTask(TrainTask):
         if model_config.lora is not None:
             if isinstance(model_config.lora, omegaconf.dictconfig.DictConfig):
                 text_model_config_path = model_config.lora.pop('text_model', None)
-                image_model_config_path = model_config.lora.pop('image_model', None)
+                vision_model_config_path = model_config.lora.pop('vision_model', None)
             else:
                 raise TypeError
             if text_model_config_path is not None:
                 text_model_lora_config = load_yml(text_model_config_path)
                 text_model_peft_config = LoraConfig(**text_model_lora_config)
                 model.text_model = get_peft_model(model.text_model, text_model_peft_config)
-            if image_model_config_path is not None:
-                image_model_lora_config = load_yml(image_model_config_path)
-                image_model_peft_config = LoraConfig(**image_model_lora_config)
-                model.image_model = get_peft_model(model.image_model, image_model_peft_config)
+            if vision_model_config_path is not None:
+                vision_model_lora_config = load_yml(vision_model_config_path)
+                vision_model_peft_config = LoraConfig(**vision_model_lora_config)
+                model.vision_model = get_peft_model(model.vision_model, vision_model_peft_config)
 
         return model.to('cuda')
 
