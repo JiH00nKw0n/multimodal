@@ -6,7 +6,7 @@ run:
   max_seq_length: 64
 
 model:
-  model_cls: 'BaseModel'
+  model_cls: 'BaseModelWithFrozenText'
   config_cls: 'BaseConfig'
   config:
     text_pretrained_model_name_or_path: &text_pretrained_model_name_or_path 'distilbert/distilbert-base-uncased'
@@ -20,7 +20,6 @@ model:
 processor:
   processor_cls: "BaseProcessor"
   config:
-      text_pretrained_model_name_or_path: 'distilbert/distilbert-base-uncased'
       vision_pretrained_model_name_or_path: 'facebook/dinov2-base'
 
 dataset:
