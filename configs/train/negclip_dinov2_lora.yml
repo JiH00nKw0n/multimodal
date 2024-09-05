@@ -14,12 +14,12 @@ model:
     pool_type: 'cls'
     torch_dtype: 'fp16'
   lora:
-    text_model: '/mnt/working/multimodal/configs/lora/distillbert_base.yml'
     vision_model: '/mnt/working/multimodal/configs/lora/dinov2_base.yml'
 
 processor:
   processor_cls: "BaseProcessor"
   config:
+      text_pretrained_model_name_or_path: 'distilbert/distilbert-base-uncased'
       vision_pretrained_model_name_or_path: 'facebook/dinov2-base'
 
 dataset:
