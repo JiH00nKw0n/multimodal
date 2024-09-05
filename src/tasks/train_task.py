@@ -36,6 +36,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.FileHandler(f'./logging/{__name__}.log', 'w'))
 
+
 class TrainTask(BaseTask):
     config: TrainConfig
 

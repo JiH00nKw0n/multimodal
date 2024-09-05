@@ -1,5 +1,8 @@
 import json
 import logging
+
+from transformers import AutoProcessor
+
 from src.common import EvaluateConfig, registry, SequenceTextCollator
 from src.utils import load_json
 from src.tasks.base import BaseTask
@@ -79,3 +82,25 @@ class CustomModelEvaluateTask(BaseTask):
 
         return model.eval()
 
+
+@registry.register_task("PretrainedModelEvaluateTask")
+class PretrainedModelEvaluateTask(BaseTask):
+    config: EvaluateConfig
+
+    def build_model(self, model_config: Optional[Dict] = None):
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+
+        model = model_cls.from_pretrained(**model_config.config)
+
+        return model.eval()
+
+    def build_processor(self, processor_config: Optional[Dict] = None):
+        processor_config = processor_config \
+            if processor_config is not None else self.config.processor_config.copy()
+
+        return AutoProcessor.from_pretrained(**processor_config.config)

@@ -23,6 +23,7 @@ class BaseEvaluator(BaseModel):
     model: PreTrainedModel
     data_collator: SequenceTextCollator
     evaluate_dataset: Dataset
+    output_dir: Optional[Union[str, os.PathLike]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -32,14 +33,13 @@ class BaseEvaluator(BaseModel):
     def _encode_dataset(self, batch_size: int):
         raise NotImplementedError
 
-    def evaluate(self, k_values: Optional[List[int]]):
+    def evaluate(self, batch_size: int):
         raise NotImplementedError
 
 
 @registry.register_evaluator("RetrievalEvaluator")
 class RetrievalEvaluator(BaseEvaluator):
     k_values: Optional[List[int]] = None
-    output_dir: Optional[Union[str, os.PathLike]] = None
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
     image_to_text_map: List[List[int]] = Field(default_factory=list)
@@ -175,7 +175,6 @@ def group_correct(result):
 
 @registry.register_evaluator("WinogroundEvaluator")
 class WinogroundEvaluator(BaseEvaluator):
-    output_dir: Optional[Union[str, os.PathLike]] = None
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
     winoground_scores: List[Dict[Any]] = Field(default_factory=list)
@@ -225,7 +224,9 @@ class WinogroundEvaluator(BaseEvaluator):
                     "c1_i1": score_c1_i1
                 })
 
-    def evaluate(self, k_values: Optional[List[int]]):
+    def evaluate(self, batch_size: int = 128):
+
+        self._encode_dataset(batch_size=batch_size)
 
         text_correct_count = 0
         image_correct_count = 0
@@ -254,7 +255,6 @@ class WinogroundEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("SVOEvaluator")
 class SVOEvaluator(BaseEvaluator):
-    output_dir: Optional[Union[str, os.PathLike]] = None
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
     svo_scores: List[Dict[Any]] = Field(default_factory=list)
@@ -303,7 +303,9 @@ class SVOEvaluator(BaseEvaluator):
                     "neg_scores": score_neg > score_pos
                 })
 
-    def evaluate(self, k_values: Optional[List[int]]):
+    def evaluate(self, batch_size: int = 128):
+        self._encode_dataset(batch_size=batch_size)
+
         def accuracy(samples: List[Dict]):
             # 부정 이미지의 정확도 계산 (neg_scores가 False인 경우)
             _neg_acc = np.mean([not sample['neg_scores'] for sample in samples])
@@ -312,7 +314,7 @@ class SVOEvaluator(BaseEvaluator):
             _pos_acc = np.mean([sample['pos_scores'] for sample in samples])
 
             # 매크로 정확도 계산
-            _acc = (neg_acc + pos_acc) / 2
+            _acc = (neg_acc + pos_acc) / 2.0
 
             return _acc, _pos_acc, _neg_acc
 
@@ -355,3 +357,73 @@ class SVOEvaluator(BaseEvaluator):
         if self.output_dir is not None:
             with open(os.path.join(self.output_dir, 'SVO.json'), "w") as f:
                 json.dump(results, f, indent=2)
+
+
+@registry.register_evaluator("AROEvaluator")
+class AROEvaluator(BaseEvaluator):
+    aro_scores: List[Dict[Any]] = Field(default_factory=list)
+
+    def _encode_dataset(self, batch_size: int = 128):
+        pass
+
+    def evaluate(self, batch_size: int = 128):
+        """
+            Scores: N x 1 x 2, i.e. first caption is the perturbed one, second is the positive one
+        """
+        self._encode_dataset(batch_size=batch_size)
+
+        # if isinstance(scores, tuple):
+        #     scores_i2t = scores[1]
+        #     scores_t2i = scores[0]
+        # else:
+        #     scores_t2i = scores
+        #     scores_i2t = scores
+        #
+        # preds = np.argmax(np.squeeze(scores_i2t, axis=1), axis=-1)
+        # correct_mask = (preds == 1)
+        # result_records = []
+        # all_attributes = np.array(self.all_attributes)
+        # for attr in np.unique(all_attributes):
+        #     attr_mask = (all_attributes == attr)
+        #     if attr_mask.sum() < 25:
+        #         continue
+        #     result_records.append({
+        #         "Attributes": attr,
+        #         "Accuracy": correct_mask[attr_mask].mean(),
+        #         "Count": attr_mask.sum(),
+        #         "Dataset": "Visual Genome Attribution"
+        #     })
+        # return result_records
+
+
+@registry.register_evaluator("CrepeEvaluator")
+class CrepeEvaluator(BaseEvaluator):
+    crepe_scores: List[Dict[Any]] = Field(default_factory=list)
+
+    def _encode_dataset(self, batch_size: int = 128):
+        pass
+
+    def evaluate(self, batch_size: int = 128):
+        pass
+
+
+@registry.register_evaluator("SugarCrepeEvaluator")
+class SugarCrepeEvaluator(BaseEvaluator):
+    sugar_crepe_scores: List[Dict[Any]] = Field(default_factory=list)
+
+    def _encode_dataset(self, batch_size: int = 128):
+        pass
+
+    def evaluate(self, batch_size: int = 128):
+        pass
+
+
+@registry.register_evaluator("VLCEvaluator")
+class VLCEvaluator(BaseEvaluator):
+    vlc_scores: List[Dict[Any]] = Field(default_factory=list)
+
+    def _encode_dataset(self, batch_size: int = 128):
+        pass
+
+    def evaluate(self, batch_size: int = 128):
+        pass

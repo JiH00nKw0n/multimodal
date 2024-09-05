@@ -90,6 +90,7 @@ class BasePreTrainedModel(PreTrainedModel):
 
     config_class = BaseConfig
     base_model_prefix = "base"
+    supports_gradient_checkpointing = True
 
     def _init_weights(self, module):
         """Initialize the weights"""
