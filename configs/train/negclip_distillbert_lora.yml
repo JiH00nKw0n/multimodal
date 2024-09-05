@@ -1,0 +1,50 @@
+run:
+  task: 'DatasetCustomModelTrainTask'
+  runner: 'NegCLIPTrainer'
+  collator: 'SequenceTextWithHNCollator'
+  seed: 2024
+  max_seq_length: 64
+
+model:
+  model_cls: 'BaseModelWithFrozenImage'
+  config_cls: 'BaseConfig'
+  config:
+    text_pretrained_model_name_or_path: &text_pretrained_model_name_or_path 'distilbert/distilbert-base-uncased'
+    vision_pretrained_model_name_or_path: &vision_pretrained_model_name_or_path 'facebook/dinov2-base'
+    pool_type: 'cls'
+    torch_dtype: 'fp16'
+  lora:
+    text_model: '/mnt/working/multimodal/configs/lora/distillbert_base.yml'
+
+processor:
+  processor_cls: "BaseProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'distilbert/distilbert-base-uncased'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-base'
+
+dataset:
+  COCOCaptionsWithMinedHNDatasetBuilder:
+    split: 'train'
+
+trainer:
+  output_dir: '/mnt/working/_output'
+  learning_rate: &learning_rate 1.0e-5
+  lr_scheduler_type: 'cosine'
+  warmup_steps: &warmup_steps 50
+  weight_decay: &weight_decay 1.0e-1
+  max_steps : &max_steps 500
+  save_steps: 50
+  logging_steps : 1
+  eval_strategy: 'no' # 'steps', 'epochs', 'no'
+
+  num_train_epochs: 1
+  per_device_train_batch_size : &per_device_batch_size 512
+  gradient_accumulation_steps: &gradient_accumulation 2
+
+  fp16: &fp16 True # use torch.float16
+  fp16_opt_level : '01'
+  bf16: &bf16 False # Use torch.bfloat16
+
+  group_by_length : False # Whether to order the sample by token length.
+  use_cpu : False
+  remove_unused_columns : False
