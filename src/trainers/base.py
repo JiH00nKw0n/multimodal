@@ -51,9 +51,10 @@ class NegCLIPTrainer(BaseTrainer):
             'return_loss': False,
         })
         outputs = model(**inputs)
-
+        torch.cuda.empty_cache()
         logits_per_image = outputs.logits_per_image
 
         loss = neg_clip_loss(logits_per_image)
-
+        torch.cuda.empty_cache()
+        
         return (loss, outputs) if return_outputs else loss

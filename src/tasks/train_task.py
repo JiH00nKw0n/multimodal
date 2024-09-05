@@ -2,7 +2,7 @@ import os
 
 import omegaconf
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
-from transformers import TrainingArguments, AutoModel, AutoProcessor
+from transformers import TrainingArguments, AutoModel, AutoProcessor, BitsAndBytesConfig
 import logging
 from src.common import TrainConfig, registry
 from src.utils.utils import load_yml
@@ -14,6 +14,16 @@ from peft import (
     LoraConfig,
 )
 
+# # TODO; how to control the model quantization?
+# quantization = {
+#     'load_in_4bit': True,
+#     'load_in_8bit': False,
+#     'bnb_4bit_use_double_quant': True,
+#     'bnb_4bit_compute_dtype': 'float16',
+#     'bnb_4bit_quant_type': 'nf4',
+# }
+
+
 __all__ = [
     "TrainTask",
     "PretrainedModelTrainTask",
@@ -24,7 +34,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
+logger.addHandler(logging.FileHandler(f'./logging/{__name__}.log', 'w'))
 
 class TrainTask(BaseTask):
     config: TrainConfig
@@ -63,7 +73,9 @@ class PretrainedModelTrainTask(TrainTask):
     def build_model(self, model_config: Optional[Dict] = None):
         model_config = model_config \
             if model_config is not None else self.config.model_config.copy()
+        # bnb_config = BitsAndBytesConfig(**quantization)
 
+        # model = AutoModel.from_pretrained(**model_config.config, quantization_config = bnb_config)
         model = AutoModel.from_pretrained(**model_config.config)
         if model_config.lora is not None:
             if isinstance(model_config.lora, str):

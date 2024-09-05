@@ -7,7 +7,7 @@ Code base for implementing vision-language pre-training initialized from uni-mod
 ```
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 pip install -r requirements.txt
-pip install wandb transformers
+pip install wandb transformers peft
 python -m spacy download en
 ```
 
@@ -74,8 +74,6 @@ gdown --no-cookies 1qaPlrwhGNMrR3a11iopZUT_GPP_LrgP9 --output $OUTPUT_DIR
 | VLC        | -           | -                   |
 
 
-
-
 # Run
 
 ## Negative Mining
@@ -86,6 +84,16 @@ gdown --no-cookies 1qaPlrwhGNMrR3a11iopZUT_GPP_LrgP9 --output $OUTPUT_DIR
 ```
 bash ./scripts/mining.sh
 ```
+
+# Train
+
+## Log
+
+- negclip_clip_finetune config 기준
+    - 단 batch 및 grad accum iter 수정
+    - GPU mem : ~18GB
+    - ETA : 
+
 
 # History
 
