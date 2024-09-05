@@ -37,8 +37,10 @@ class EvaluateTask(BaseTask):
                 dataset = dataset.shuffle(seed=self.config.run_config.seed, buffer_size=buffer_size)
 
             dataset_dict[builder.name] = dataset
+            break
 
-        return dataset_dict
+        # TODO: 데이터셋 여러 개 되게 하기
+        return dataset
 
     def build_evaluator(self, evaluator_config: Optional[Dict] = None):
         assert "runner" in self.config.run_config, "Evaluator name must be provided."
@@ -62,7 +64,7 @@ class EvaluateTask(BaseTask):
 
 
 @registry.register_task("CustomModelEvaluateTask")
-class CustomModelEvaluateTask(BaseTask):
+class CustomModelEvaluateTask(EvaluateTask):
     config: EvaluateConfig
 
     def build_model(self, model_config: Optional[Dict] = None):
@@ -84,7 +86,7 @@ class CustomModelEvaluateTask(BaseTask):
 
 
 @registry.register_task("PretrainedModelEvaluateTask")
-class PretrainedModelEvaluateTask(BaseTask):
+class PretrainedModelEvaluateTask(EvaluateTask):
     config: EvaluateConfig
 
     def build_model(self, model_config: Optional[Dict] = None):

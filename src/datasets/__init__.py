@@ -7,6 +7,7 @@ from .coco_captions import (
     COCOCaptionsWithMinedHNDatasetBuilder,
 )
 from .sbu_captions import SBUCaptionsDatasetBuilder
+from .flickr30k import Flickr30kDatasetBuilder
 
 __all__ = [
     'BaseBuilder',
@@ -18,4 +19,5 @@ __all__ = [
     'COCOCaptionsIterableDatasetBuilder',
     'COCOCaptionsWithHNDatasetBuilder',
     'COCOCaptionsWithMinedHNDatasetBuilder',
+    'Flickr30kDatasetBuilder'
 ]

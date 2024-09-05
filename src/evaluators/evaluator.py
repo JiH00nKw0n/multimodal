@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from typing import List, Optional, Any, Union, Tuple, Dict
@@ -8,7 +9,9 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import PreTrainedModel
-from src.common.collator import SequenceTextCollator
+
+from src import process_batch_async
+from src.common.collator import SequenceTextCollator, convert_to_rgb
 from datasets import Dataset, tqdm
 from src.common.registry import registry
 
@@ -51,12 +54,26 @@ class RetrievalEvaluator(BaseEvaluator):
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-
         image_idx = 0
         text_idx = 0
         max_captions_per_image = 1
-        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False)
-        for samples in dataloader:
+
+        def process_images_in_batch(batch):
+            # 모든 dict에서 이미지를 추출한 후 일괄 처리
+            all_images = [item['images'] for item in batch]  # 모든 dict에서 이미지 추출
+
+            # 비동기 처리 및 이미지 변환 적용
+            all_images = asyncio.run(process_batch_async(all_images))  # 비동기 처리
+            all_images = convert_to_rgb(all_images)  # 이미지 변환 (RGB로 변환)
+
+            # 처리된 이미지를 다시 각 dict에 할당
+            for i, item in enumerate(batch):
+                item['images'] = all_images[i]  # 처리된 이미지를 해당 dict에 할당
+
+            return batch  # 처리된 batch 반환
+
+        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False, collate_fn=process_images_in_batch)
+        for samples in tqdm(dataloader):
 
             for sample in samples:
                 text_sample = sample['text']
@@ -120,7 +137,7 @@ class RetrievalEvaluator(BaseEvaluator):
             top_k = indices[:, :k]
 
             # correct iff one of the top_k values equals the correct image (as given by text_to_image_map)
-            correct = torch.eq(top_k, text_to_image_map.unsqueeze(-1)).any(dim=1)
+            correct = torch.eq(top_k, text_to_image_map.unsqueeze(-1)).any(dim=1).cpu()
 
             num_correct = correct.sum().item()
             text_to_image_recall.append(num_correct / num_text)
@@ -137,12 +154,12 @@ class RetrievalEvaluator(BaseEvaluator):
             # extract top k indices only
             top_k = indices[:, :k]
 
-            correct = torch.zeros((num_im,), dtype=torch.bool).cuda()
+            correct = torch.zeros((num_im,), dtype=torch.bool).cpu()
 
             # for each image, check whether one of the 5 relevant captions was retrieved
             # check if image matches its ith caption (for i=0..4)
             for i in range(captions_per_image):
-                contains_index = torch.eq(top_k, image_to_text_map[:, i].unsqueeze(-1)).any(dim=1)
+                contains_index = torch.eq(top_k, image_to_text_map[:, i].unsqueeze(-1)).any(dim=1).cpu()
                 correct = torch.logical_or(correct, contains_index)
 
             num_correct = correct.sum().item()
@@ -177,7 +194,7 @@ def group_correct(result):
 class WinogroundEvaluator(BaseEvaluator):
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
-    winoground_scores: List[Dict[Any]] = Field(default_factory=list)
+    winoground_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False)
@@ -257,7 +274,7 @@ class WinogroundEvaluator(BaseEvaluator):
 class SVOEvaluator(BaseEvaluator):
     # image_to_text_map[i] gives the corresponding text indices for the ith image
     # (as there are multiple pieces of text for each image)
-    svo_scores: List[Dict[Any]] = Field(default_factory=list)
+    svo_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         def _get_id_list(s: List[Dict]) -> List:
@@ -361,7 +378,7 @@ class SVOEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("AROEvaluator")
 class AROEvaluator(BaseEvaluator):
-    aro_scores: List[Dict[Any]] = Field(default_factory=list)
+    aro_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         pass
@@ -398,7 +415,7 @@ class AROEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("CrepeEvaluator")
 class CrepeEvaluator(BaseEvaluator):
-    crepe_scores: List[Dict[Any]] = Field(default_factory=list)
+    crepe_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         pass
@@ -409,7 +426,7 @@ class CrepeEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("SugarCrepeEvaluator")
 class SugarCrepeEvaluator(BaseEvaluator):
-    sugar_crepe_scores: List[Dict[Any]] = Field(default_factory=list)
+    sugar_crepe_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         pass
@@ -420,7 +437,7 @@ class SugarCrepeEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("VLCEvaluator")
 class VLCEvaluator(BaseEvaluator):
-    vlc_scores: List[Dict[Any]] = Field(default_factory=list)
+    vlc_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
         pass

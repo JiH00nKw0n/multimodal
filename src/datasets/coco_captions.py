@@ -112,7 +112,7 @@ class COCOCaptionsDatasetBuilder(SequenceTextDatasetBuilder):
             )
         dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
-        dataset = dataset.cast(self.features)
+        # dataset = dataset.cast(self.features)
 
         return dataset
 
