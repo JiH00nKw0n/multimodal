@@ -63,7 +63,10 @@ class RetrievalEvaluator(BaseEvaluator):
             all_images = [item['images'] for item in batch]  # 모든 dict에서 이미지 추출
 
             # 비동기 처리 및 이미지 변환 적용
-            all_images = asyncio.run(process_batch_async(all_images))  # 비동기 처리
+            try:
+                all_images = asyncio.run(process_batch_async(all_images))  # 비동기 처리
+            except:
+                pass
             all_images = convert_to_rgb(all_images)  # 이미지 변환 (RGB로 변환)
 
             # 처리된 이미지를 다시 각 dict에 할당
