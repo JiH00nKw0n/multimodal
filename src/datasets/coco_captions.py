@@ -10,6 +10,9 @@ from src.datasets.base import SequenceTextDatasetBuilder, SequenceTextDatasetWit
 from src.common import registry, ImageSimilarityCalculator
 from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
 
+import torch
+from glob import glob
+
 
 def swap_spans(tokens: List[Token], span1: Span, span2: Span) -> List[Token]:
     """
@@ -109,13 +112,27 @@ class COCOCaptionsDatasetBuilder(SequenceTextDatasetBuilder):
             )
         dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
-        dataset = dataset.cast(self.features)
+        # dataset = dataset.cast(self.features)
 
         return dataset
 
 
-@registry.register_builder('COCOCaptionsWithNegCLIPHNDatasetBuilder')
-class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
+@registry.register_builder('COCOCaptionsWithMinedHNDatasetBuilder')
+class COCOCaptionsWithMinedHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
+    split: Union[str | List[str]] = 'train'
+    name: Optional[str] = 'coco'
+
+    def build_dataset(self) -> Dataset:
+        dataset = load_dataset(
+            "yjkimstats/COCOCaption_mined", trust_remote_code=True, split=self.split
+        )
+        # dataset = dataset.cast(self.features)
+
+        return dataset
+
+
+@registry.register_builder('COCOCaptionsWithHNDatasetBuilder')
+class COCOCaptionsWithHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
     split: Union[str, List[str]] = ['train', 'restval']
     name: Optional[str] = 'coco'
     spacy_model_name: Optional[str] = "en_core_web_sm"
@@ -133,20 +150,27 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
         super().model_post_init(None)
 
     def build_dataset(self) -> Dataset:
-        if isinstance(self.split, list):
-            dataset = concatenate_datasets(load_dataset(
-                "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
-            ))
+        # TODO: Load from cache if exists
+        cache_list = list(map(lambda x: x.split('/')[-1], glob(f'{os.getenv("DATA_DIR")}/*.parquet')))
+        
+        if f'{self.cache_file_name}.parquet' in cache_list:
+            dataset = load_dataset("parquet", data_files={'train': f'{self.cache_file_name}.parquet'})
         else:
-            dataset = load_dataset(
-                "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
-            )
-        dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
-        dataset = dataset.select_columns(['images', 'text'])
+            if isinstance(self.split, list):
+                dataset = concatenate_datasets(load_dataset(
+                    "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
+                ))
+            else:
+                dataset = load_dataset(
+                    "yerevann/coco-karpathy", trust_remote_code=True, split=self.split
+                )
+            dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
+            dataset = dataset.select_columns(['images', 'text'])
 
-        dataset = self.negative_image_mining(dataset)
-        dataset = self.negative_text_mining(dataset)
-        dataset = dataset.cast(self.features)
+            dataset = self.negative_image_mining(dataset)
+            dataset = self.negative_text_mining(dataset)
+            # NOTE : not to load image file!
+            # dataset = dataset.cast(self.features)
 
         return dataset
 
@@ -158,7 +182,9 @@ class COCOCaptionsWithNegCLIPHNDatasetBuilder(SequenceTextDatasetWithHNBuilder):
             batch_size=self.batch_size,
             top_k=self.image_top_k,
         )
+        torch.cuda.empty_cache()
         similarity_dict = image_similarity_calculator.compute_image_similarity(dataset=dataset)
+        # similarity_dict = image_similarity_calculator.compute_image_similarity_batched(dataset=dataset)
 
         for idx, example in tqdm(enumerate(dataset)):
             similar_indices = similarity_dict[idx]

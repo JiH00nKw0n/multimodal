@@ -1,5 +1,8 @@
 import json
 import logging
+
+from transformers import AutoProcessor
+
 from src.common import EvaluateConfig, registry, SequenceTextCollator
 from src.utils import load_json
 from src.tasks.base import BaseTask
@@ -34,8 +37,10 @@ class EvaluateTask(BaseTask):
                 dataset = dataset.shuffle(seed=self.config.run_config.seed, buffer_size=buffer_size)
 
             dataset_dict[builder.name] = dataset
+            break
 
-        return dataset_dict
+        # TODO: 데이터셋 여러 개 되게 하기
+        return dataset
 
     def build_evaluator(self, evaluator_config: Optional[Dict] = None):
         assert "runner" in self.config.run_config, "Evaluator name must be provided."
@@ -59,7 +64,7 @@ class EvaluateTask(BaseTask):
 
 
 @registry.register_task("CustomModelEvaluateTask")
-class CustomModelEvaluateTask(BaseTask):
+class CustomModelEvaluateTask(EvaluateTask):
     config: EvaluateConfig
 
     def build_model(self, model_config: Optional[Dict] = None):
@@ -80,9 +85,24 @@ class CustomModelEvaluateTask(BaseTask):
         return model.eval()
 
 
-@registry.register_task("CustomModelEvaluateVLCTask")
-class CustomModelEvaluateVLCTask(CustomModelEvaluateTask):
+@registry.register_task("PretrainedModelEvaluateTask")
+class PretrainedModelEvaluateTask(EvaluateTask):
     config: EvaluateConfig
 
-    def build_evaluator(self, evaluator_config: Optional[Dict] = None):
-        pass
+    def build_model(self, model_config: Optional[Dict] = None):
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+
+        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
+
+        model = model_cls.from_pretrained(**model_config.config)
+
+        return model.eval()
+
+    def build_processor(self, processor_config: Optional[Dict] = None):
+        processor_config = processor_config \
+            if processor_config is not None else self.config.processor_config.copy()
+
+        return AutoProcessor.from_pretrained(**processor_config.config)

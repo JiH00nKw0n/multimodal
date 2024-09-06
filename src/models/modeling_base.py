@@ -17,6 +17,7 @@ logger = logging.get_logger(__name__)
 
 __all__ = [
     "BaseModel", "BaseOutput", "BasePreTrainedModel",
+    "BaseModelWithFrozenText", "BaseModelWithFrozenImage", "BaseModelWithFrozenImageText",
     "BASE_TEXT_INPUTS_DOCSTRING", "BASE_VISION_INPUTS_DOCSTRING", "BASE_INPUTS_DOCSTRING",
     "base_loss",
 ]
@@ -89,6 +90,7 @@ class BasePreTrainedModel(PreTrainedModel):
 
     config_class = BaseConfig
     base_model_prefix = "base"
+    supports_gradient_checkpointing = True
 
     def _init_weights(self, module):
         """Initialize the weights"""
@@ -215,8 +217,12 @@ class BaseModel(BasePreTrainedModel):
         self.text_embed_dim = text_config.hidden_size
         self.vision_embed_dim = vision_config.hidden_size
 
-        self.visual_projection = nn.Linear(self.vision_embed_dim, self.projection_dim, bias=False)
-        self.text_projection = nn.Linear(self.text_embed_dim, self.projection_dim, bias=False)
+        self.visual_projection = nn.Linear(
+            self.vision_embed_dim, self.projection_dim, bias=False
+        ).to(dtype=config.torch_dtype)
+        self.text_projection = nn.Linear(
+            self.text_embed_dim, self.projection_dim, bias=False
+        ).to(dtype=config.torch_dtype)
         self.logit_scale = nn.Parameter(torch.tensor(self.config.logit_scale_init_value))
 
         # Initialize weights and apply final processing
@@ -246,15 +252,24 @@ class BaseModel(BasePreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        text_outputs = self.text_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        try:
+            text_outputs = self.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+                position_ids=position_ids,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        except:
+            text_outputs = self.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
 
         if self.pool_type is not None:
             pooled_output = pool(
@@ -348,15 +363,24 @@ class BaseModel(BasePreTrainedModel):
             return_dict=return_dict,
         )
 
-        text_outputs = self.text_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        try:
+            text_outputs = self.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+                position_ids=position_ids,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        except:
+            text_outputs = self.text_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
 
         image_embeds = vision_outputs[1]
         image_embeds = self.visual_projection(image_embeds)
@@ -399,3 +423,46 @@ class BaseModel(BasePreTrainedModel):
             text_model_output=text_outputs,
             vision_model_output=vision_outputs,
         )
+
+
+@registry.register_model("BaseModelWithFrozenText")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenText(BaseModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the text Model
+        for param in self.text_model.parameters():
+            param.requires_grad = False
+
+
+@registry.register_model("BaseModelWithFrozenImage")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenImage(BaseModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the image Model
+        for param in self.vision_model.parameters():
+            param.requires_grad = False
+
+
+@registry.register_model("BaseModelWithFrozenImageText")
+@add_start_docstrings(BASE_START_DOCSTRING)
+class BaseModelWithFrozenImageText(BaseModel):
+    config_class = BaseConfig
+
+    def __init__(self, config: BaseConfig):
+        super().__init__(config)
+
+        # Lock the image Model
+        for param in self.vision_model.parameters():
+            param.requires_grad = False
+
+        # Lock the text Model
+        for param in self.text_model.parameters():
+            param.requires_grad = False

@@ -1,0 +1,56 @@
+run:
+  task: 'DatasetPretrainedModelTrainTask'
+  runner: 'NegCLIPTrainer'
+  collator: 'SequenceTextWithHNCollator'
+  seed: 2024
+  max_seq_length: 64
+
+
+model:
+  model_cls: 'CLIPModel'
+  config:
+    pretrained_model_name_or_path: &model_name_or_path 'openai/clip-vit-base-patch32'
+  # NOTE : Fix hard coded directory
+  lora: '/home/yjkim/multimodal/configs/lora/clip_vit_large_patch14_336.yml'
+
+
+processor:
+  processor_cls: "CLIPProcessor"
+  config:
+    pretrained_model_name_or_path: 'openai/clip-vit-base-patch32'
+
+dataset:
+  COCOCaptionsWithMinedHNDatasetBuilder:
+    split: 'train'
+    cache_file_name : negclip
+
+trainer:
+  # NOTE : Fix hard coded directory
+  output_dir: '/data/yjkim/mm/train_output'
+  run_name : NegClip_finetuning # for wandb
+  learning_rate: &learning_rate 1.0e-5
+  lr_scheduler_type: 'cosine'
+  warmup_steps: &warmup_steps 50
+  weight_decay: &weight_decay 1.0e-1
+  max_steps : &max_steps 500
+  save_steps: 50
+  logging_steps : 1
+  eval_strategy: 'no' # 'steps', 'epochs', 'no'
+
+  num_train_epochs: 5
+  per_device_train_batch_size : &per_device_batch_size 512 # default 1024
+  gradient_accumulation_steps: &gradient_accumulation 2
+  # For memory efficiency.
+  gradient_checkpointing : True
+  # NOTE : need to use this option to cope with DDP
+  gradient_checkpointing_kwargs:
+    use_reentrant: False
+  ddp_find_unused_parameters: False
+
+  fp16: &fp16 True # use torch.float16
+  fp16_opt_level : '01'
+  bf16: &bf16 False # Use torch.bfloat16
+
+  group_by_length : False # Whether to order the sample by token length.
+  use_cpu : False
+  remove_unused_columns : False

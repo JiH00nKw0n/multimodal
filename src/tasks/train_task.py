@@ -1,9 +1,28 @@
+import os
+
+import omegaconf
 from datasets import IterableDataset, Dataset, interleave_datasets, concatenate_datasets
-from transformers import TrainingArguments, AutoModel, AutoProcessor
+from transformers import TrainingArguments, AutoModel, AutoProcessor, BitsAndBytesConfig
 import logging
-from src.common import TrainConfig, registry, BaseCollator
+from src.common import TrainConfig, registry
+from src.utils.utils import load_yml
+import yaml
 from src.tasks.base import BaseTask
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
+from peft import (
+    get_peft_model,
+    LoraConfig,
+)
+
+# # TODO; how to control the model quantization?
+# quantization = {
+#     'load_in_4bit': True,
+#     'load_in_8bit': False,
+#     'bnb_4bit_use_double_quant': True,
+#     'bnb_4bit_compute_dtype': 'float16',
+#     'bnb_4bit_quant_type': 'nf4',
+# }
+
 
 __all__ = [
     "TrainTask",
@@ -15,6 +34,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.FileHandler(f'./logging/{__name__}.log', 'w'))
 
 
 class TrainTask(BaseTask):
@@ -24,16 +44,23 @@ class TrainTask(BaseTask):
         assert "runner" in self.config.run_config, "Trainer name must be provided."
 
         trainer_name = self.config.run_config.runner
-        trainer = registry.get_trainer_class(trainer_name)
-        assert trainer is not None, "Task {} not properly registered.".format(trainer_name)
+        trainer_cls = registry.get_trainer_class(trainer_name)
+        assert trainer_cls is not None, "Trainer {} not properly registered.".format(trainer_name)
 
         trainer_config = trainer_config if trainer_config is not None else self.config.trainer_config
-        collator = BaseCollator(
+
+        collator_name = self.config.run_config.collator
+        collator_cls = registry.get_collator_class(collator_name)
+
+        assert collator_cls is not None, "Collator {} not properly registered.".format(collator_name)
+
+        collator = collator_cls(
             processor=self.build_processor(), max_length=self.config.run_config.max_seq_length
         )
+
         train_dataset = self.build_datasets()
 
-        return trainer(
+        return trainer_cls(
             model=self.build_model(),
             args=TrainingArguments(**trainer_config),
             train_dataset=train_dataset,
@@ -47,10 +74,27 @@ class PretrainedModelTrainTask(TrainTask):
     def build_model(self, model_config: Optional[Dict] = None):
         model_config = model_config \
             if model_config is not None else self.config.model_config.copy()
+        # bnb_config = BitsAndBytesConfig(**quantization)
 
+        # model = AutoModel.from_pretrained(**model_config.config, quantization_config = bnb_config)
         model = AutoModel.from_pretrained(**model_config.config)
+        if model_config.lora is not None:
+            if isinstance(model_config.lora, str):
+                lora_config = load_yml(model_config.lora)
+            elif isinstance(model_config.lora, os.PathLike):
+                lora_config = load_yml(os.fspath(model_config.lora))
+            else:
+                raise TypeError
+            peft_config = LoraConfig(**lora_config)
+            model = get_peft_model(model, peft_config)
 
-        return model
+            logger.info(f"{repr(model)}")
+            trainable_params, all_param = model.get_nb_trainable_parameters()
+
+            logger.info(
+                f'ALL PARAM: {all_param} / TRAINABLE PARAM: {trainable_params} / RATIO: {trainable_params / all_param * 100}%')
+
+        return model.to('cuda')
 
     def build_processor(self, processor_config: Optional[Dict] = None):
         processor_config = processor_config \
@@ -75,7 +119,22 @@ class CustomModelTrainTask(TrainTask):
         model_cfg = model_cfg_cls(**model_config.config)
         model = model_cls(model_cfg)
 
-        return model
+        if model_config.lora is not None:
+            if isinstance(model_config.lora, omegaconf.dictconfig.DictConfig):
+                text_model_config_path = model_config.lora.pop('text_model', None)
+                vision_model_config_path = model_config.lora.pop('vision_model', None)
+            else:
+                raise TypeError
+            if text_model_config_path is not None:
+                text_model_lora_config = load_yml(text_model_config_path)
+                text_model_peft_config = LoraConfig(**text_model_lora_config)
+                model.text_model = get_peft_model(model.text_model, text_model_peft_config)
+            if vision_model_config_path is not None:
+                vision_model_lora_config = load_yml(vision_model_config_path)
+                vision_model_peft_config = LoraConfig(**vision_model_lora_config)
+                model.vision_model = get_peft_model(model.vision_model, vision_model_peft_config)
+
+        return model.to('cuda')
 
 
 class DatasetTrainTask(TrainTask):
@@ -132,4 +191,9 @@ class IterableDatasetTrainTask(TrainTask):
 
 @registry.register_task("DatasetPretrainedModelTrainTask")
 class DatasetPretrainedModelTrainTask(PretrainedModelTrainTask, DatasetTrainTask):
+    config: TrainConfig
+
+
+@registry.register_task("DatasetCustomModelTrainTask")
+class DatasetCustomModelTrainTask(CustomModelTrainTask, DatasetTrainTask):
     config: TrainConfig

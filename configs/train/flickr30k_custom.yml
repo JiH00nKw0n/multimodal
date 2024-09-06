@@ -1,0 +1,29 @@
+run:
+  task: 'CustomModelEvaluateTask'
+  runner: 'RetrievalEvaluator'
+  seed: 2024
+  max_seq_length: 64
+
+model:
+  model_cls: 'BaseModel'
+  config_cls: 'BaseConfig'
+  config_path: '/mnt/working/_output/checkpoint-200/config.json'
+  config:
+    pretrained_model_name_or_path: '/mnt/working/_output/negclip_dinov2_distillbert/checkpoint-200'
+
+processor:
+  processor_cls: "BaseProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'distilbert/distilbert-base-uncased'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-base'
+
+dataset:
+  'Flickr30kDatasetBuilder':
+    split: 'test'
+
+evaluator:
+  k_values:
+    - 1
+    - 5
+    - 10
+  output_dir: '/mnt/working/_result/negclip_dinov2_distillbert/checkpoint-125'

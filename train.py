@@ -7,10 +7,14 @@ import wandb
 import logging
 
 from src.utils import get_rank, init_distributed_mode, now, load_yml
-from src.common import TrainConfig, setup_logger, CustomWandbCallback
+from src.common import TrainConfig, setup_logger, CustomWandbCallback, Logger
 import src.tasks as tasks
 
+import os
+
+
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.FileHandler(f'{os.getenv("LOG_DIR")}/{__name__}.log', 'w'))
 logger.setLevel(logging.INFO)
 
 
@@ -44,8 +48,9 @@ def main() -> None:
 
     args = parse_args()
 
+    # NOTE : Fix hard coded directory
     # 파일 핸들러 생성
-    file_handler = logging.FileHandler(f'/mnt/working/.log/fusemix_{job_id}.log/')
+    file_handler = logging.FileHandler(f'{os.getenv("LOG_DIR")}/negclip_{job_id}.log/')
     file_handler.setLevel(logging.DEBUG)
 
     # 로그 메시지 포맷 설정

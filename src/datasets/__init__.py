@@ -1,16 +1,21 @@
-from .base import BaseBuilder, BaseDatasetBuilder, SequenceTextDatasetBuilder
+from .base import BaseBuilder, DatasetBuilder
 from .conceptual_captions import ConceptualCaptionsDatasetBuilder
 from .coco_captions import (
     COCOCaptionsDatasetBuilder,
     COCOCaptionsIterableDatasetBuilder,
-    COCOCaptionsWithNegCLIPHNDatasetBuilder
+    COCOCaptionsWithHNDatasetBuilder,
+    COCOCaptionsWithMinedHNDatasetBuilder,
 )
 from .sbu_captions import SBUCaptionsDatasetBuilder
+from .flickr30k import Flickr30kDatasetBuilder
 
 __all__ = [
     'BaseBuilder',
-    'BaseDatasetBuilder',
-    'SequenceTextDatasetBuilder',
     'ConceptualCaptionsDatasetBuilder',
-    'SBUCaptionsDatasetBuilder'
+    'SBUCaptionsDatasetBuilder',
+    'COCOCaptionsDatasetBuilder',
+    'COCOCaptionsIterableDatasetBuilder',
+    'COCOCaptionsWithHNDatasetBuilder',
+    'COCOCaptionsWithMinedHNDatasetBuilder',
+    'Flickr30kDatasetBuilder'
 ]

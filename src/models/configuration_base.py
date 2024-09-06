@@ -2,8 +2,9 @@
 
 import os
 from typing import TYPE_CHECKING, Optional, Union
-
 import torch
+
+from src.common import registry
 
 if TYPE_CHECKING:
     from transformers.processing_utils import ProcessorMixin
@@ -16,8 +17,8 @@ logger = logging.get_logger(__name__)
 __all__ = ["BaseConfig"]
 
 
+@registry.register_model_config("BaseConfig")
 class BaseConfig(PretrainedConfig):
-
     model_type = "base"
 
     def __init__(
