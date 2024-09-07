@@ -162,7 +162,7 @@ class Registry:
         """
 
         def wrap(evaluator_cls) -> EvaluatorType:
-            from src.evaluators.evaluator import BaseEvaluator
+            from src.runners.evaluator import BaseEvaluator
 
             assert issubclass(
                 evaluator_cls, BaseEvaluator

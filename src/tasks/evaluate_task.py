@@ -1,39 +1,33 @@
 import logging
 from typing import Optional, Dict, Type, List
 
-import omegaconf
+from datasets import Dataset
+from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field
-from transformers import add_end_docstrings
+from transformers import add_end_docstrings, PreTrainedModel, ProcessorMixin
 
-from src.common import EvaluateConfig, registry, experimental
+from src.common import registry, experimental
 from src.datasets import BUILDER_EVALUATOR_MAPPING, BaseBuilder
 from src.evaluators import BaseEvaluator, EVALUATOR_COLLATOR_MAPPING
-from src.tasks.base import BaseTask, TaskWithPretrainedModel, TaskWithCustomModel
+from src.tasks.base import (
+    TaskWithPretrainedModel, TaskWithCustomModel, EVALUATE_TASK_DOCSTRING, BaseEvaluateTask
+)
+from src.utils import load_json
 
 __all__ = [
-    "EvaluateTask",
-    "EvaluateTaskWithPretrainedModel",
-    "EvaluateTaskWithCustomModel"
+    "MultiDatasetEvaluateTask",
+    "MultiDatasetEvaluateTaskWithPretrainedModel",
+    "MultDatasetEvaluateTaskWithCustomModel"
 ]
 
+# Type aliases for common types
+ModelType = Type[PreTrainedModel]
+ProcessorType = Type[ProcessorMixin]
 EvaluatorType = Type[BaseEvaluator]
 BuilderType = Type[BaseBuilder]
 
+# Setting up logger for debugging purposes
 logger = logging.getLogger(__name__)
-
-# 공통 docstring 선언
-TASK_DOCSTRING = """
-    A task class for evaluating models using predefined or custom evaluators and datasets. 
-    The `EvaluateTask` class provides methods for building datasets and evaluators, and for adding 
-    evaluators to the container. 
-
-    Methods:
-        build_datasets(dataset_config, shuffle, buffer_size):
-            Builds and returns datasets using the provided dataset configuration.
-
-        build_evaluator(evaluator_config):
-            Builds and returns evaluators using the provided evaluator configuration.
-"""
 
 
 @experimental
@@ -57,7 +51,7 @@ class EvaluatorContainer(BaseModel):
 
     model_config = ConfigDict(frozen=False, strict=False, validate_assignment=False)
 
-    def evaluate(self, batch_size: int = 128):
+    def evaluate(self, batch_size: Optional[int] = 128):
         """
         Runs the evaluation process for each evaluator in the container.
 
@@ -78,39 +72,34 @@ class EvaluatorContainer(BaseModel):
         self.container.append(evaluator)
 
 
-@add_end_docstrings(TASK_DOCSTRING)
-class EvaluateTask(BaseTask):
+@add_end_docstrings(EVALUATE_TASK_DOCSTRING)
+class MultiDatasetEvaluateTask(BaseEvaluateTask):
     """
-    A base class for tasks that evaluate models using evaluators and datasets.
-    It provides methods for building datasets and evaluators.
+    A class for managing and running multiple evaluation tasks on a single model using different evaluators and datasets.
+    This class allows for evaluating a single model across multiple evaluation tasks, each managed by an
+    `EvaluatorContainer`.
 
-    Attributes:
-        config (EvaluateConfig): The configuration for the evaluation task.
+    It provides methods for building datasets and evaluators, and executes multiple evaluation tasks on the model.
     """
-
-    config: EvaluateConfig
 
     def build_datasets(
             self,
-            dataset_config: Optional[Dict] = None,
-            shuffle: Optional[bool] = False,
-            buffer_size: Optional[int] = 10000
+            dataset_config: Optional[Dict] = None
     ) -> Dict[str, BuilderType]:
         """
-        Builds the datasets based on the dataset configuration provided.
+        Builds the datasets based on the provided configuration. The datasets are stored as builders keyed by their names.
 
         Args:
-            dataset_config (Optional[Dict]): The dataset configuration. Defaults to `self.config.dataset_config`.
-            shuffle (Optional[bool]): Whether to shuffle the dataset. Defaults to `False`.
-            buffer_size (Optional[int]): The buffer size for shuffling. Defaults to `10000`.
+            dataset_config (Optional[Dict]): The dataset configuration.
+            If not provided, defaults to `self.config.dataset_config`.
 
         Returns:
-            Dict[str, BuilderType]: A dictionary of dataset builders keyed by dataset name.
+            Dict[str, BuilderType]: A dictionary containing dataset builders keyed by dataset name.
         """
         dataset_config = dataset_config if dataset_config is not None else self.config.dataset_config
 
         builder_dict = {}
-        assert len(dataset_config) > 0, "At least one dataset has to be specified."
+        assert len(dataset_config) > 0, "At least one dataset must be specified."
 
         for builder_cls_name, config in dataset_config.items():
             builder = registry.get_builder_class(builder_cls_name)(**config)
@@ -118,25 +107,34 @@ class EvaluateTask(BaseTask):
 
         return builder_dict
 
-    def build_evaluator(self, evaluator_config: Optional[omegaconf.DictConfig] = None):
+    def build_evaluator(
+            self,
+            evaluator_config: Optional[DictConfig] = None
+    ) -> EvaluatorContainer:
         """
-        Builds the evaluators using the provided evaluator configuration. Evaluators are
-        added to the container and evaluated on the datasets.
+        Builds and initializes the evaluators using the provided configuration. The evaluators are added to an
+        `EvaluatorContainer` and evaluated on the corresponding datasets.
 
         Args:
-            evaluator_config (Optional[omegaconf.DictConfig]): The evaluator configuration. Defaults to `self.config.evaluator_config`.
+            evaluator_config (Optional[DictConfig]): The evaluator configuration.
+            If not provided, defaults to `self.config.evaluator_config`.
+
+        Returns:
+            EvaluatorContainer: A container holding multiple evaluators that can run evaluations for the model.
         """
         evaluator_config = evaluator_config if evaluator_config is not None else self.config.evaluator_config
         dataset_dict = self.build_datasets()
 
         container = EvaluatorContainer()
+        model = self.build_model()
+        processor = self.build_processor()
 
         for (evaluator_cls_name, config), (builder_cls_name, builder) in zip(
                 evaluator_config.items(),
                 dataset_dict.items()
         ):
             if evaluator_cls_name not in BUILDER_EVALUATOR_MAPPING[builder_cls_name]:
-                raise TypeError(f"Evaluator {evaluator_cls_name} not valid for builder {builder_cls_name}.")
+                raise TypeError(f"Evaluator {evaluator_cls_name} is not valid for builder {builder_cls_name}.")
 
             evaluator_cls = registry.get_evaluator_class(evaluator_cls_name)
             assert evaluator_cls is not None, f"Evaluator {evaluator_cls_name} not properly registered."
@@ -146,59 +144,154 @@ class EvaluateTask(BaseTask):
             assert collator_cls is not None, f"Collator {collator_cls_name} not properly registered."
 
             collator = collator_cls(
-                processor=self.build_processor(),
+                processor=processor,
                 **self.config.collator_config
             )
 
+            evaluate_dataset = builder.build_datasets()
+
+            if not isinstance(evaluate_dataset, Dataset):
+                raise TypeError(f"Expected `evaluate_dataset` to be of type `datasets.Dataset`, "
+                                f"but got {type(evaluate_dataset)} instead.")
+
             container.add(
                 evaluator=evaluator_cls(
-                    model=self.build_model(),
+                    model=model,
                     evaluate_dataset=builder.build_datasets(),
+                    dataset_name=builder.name,
                     data_collator=collator,
                     **config
                 )
             )
 
+        return container
 
-@add_end_docstrings(TASK_DOCSTRING)
-@registry.register_task("EvaluateTaskWithPretrainedModel")
-class EvaluateTaskWithPretrainedModel(EvaluateTask, TaskWithPretrainedModel):
+
+@add_end_docstrings(EVALUATE_TASK_DOCSTRING)
+@registry.register_task("MultiDatasetEvaluateTaskWithPretrainedModel")
+class MultiDatasetEvaluateTaskWithPretrainedModel(MultiDatasetEvaluateTask, TaskWithPretrainedModel):
     """
     An evaluation task for pretrained models. Inherits from `EvaluateTask` and `TaskWithPretrainedModel`.
     """
 
-    config: EvaluateConfig
+    def build_model(
+            self,
+            model_config: Optional[Dict] = None
+    ) -> PreTrainedModel:
+        # TODO: Logic loading checkpoints which is trained with PEFT.
+        #  These checkpoints typically have `adaptor_config.json` file.
 
-    def build_model(self, model_config: Optional[Dict] = None):
         """
-        Builds and returns the pretrained model in evaluation mode.
+        Builds and returns a pretrained model for evaluation. Optionally applies LoRA configurations.
 
         Args:
-            model_config (Optional[Dict]): The model configuration. Defaults to `None`.
+            model_config (Optional[Dict]): The model configuration.
+            If not provided, defaults to `self.config.model_config`.
 
         Returns:
-            PreTrainedModel: The pretrained model in evaluation mode.
+            PreTrainedModel: The pretrained model for evaluation.
         """
-        return super().build_model(model_config=model_config).eval()
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
+
+        assert model_cls is not None, f"Model {model_cls} not properly registered."
+        assert model_cfg_cls is not None, f"Model config {model_cfg_cls} not properly registered."
+
+        config_dict = load_json(model_config.config_path)
+        model_cfg = model_cfg_cls(**config_dict)
+
+        model = model_cls.from_pretrained(**dict(model_config.config, **{"config": model_cfg}))
+
+        return model.cuda().eval()
+
+    def build_datasets(
+            self,
+            dataset_config: Optional[Dict] = None
+    ) -> Dict[str, BuilderType]:
+        return MultiDatasetEvaluateTask.build_datasets(
+            self,
+            dataset_config=dataset_config,
+        )
+
+    def build_processor(
+            self,
+            processor_config: Optional[Dict] = None
+    ) -> ProcessorType:
+        return TaskWithPretrainedModel.build_processor(
+            self,
+            processor_config=processor_config,
+        )
+
+    def build_evaluator(
+            self,
+            evaluator_config: Optional[DictConfig] = None
+    ) -> EvaluatorContainer:
+        return MultiDatasetEvaluateTask.build_evaluator(
+            self,
+            evaluator_config=evaluator_config,
+        )
 
 
-@add_end_docstrings(TASK_DOCSTRING)
-@registry.register_task("EvaluateTaskWithCustomModel")
-class EvaluateTaskWithCustomModel(EvaluateTask, TaskWithCustomModel):
+@add_end_docstrings(EVALUATE_TASK_DOCSTRING)
+@registry.register_task("MultDatasetEvaluateTaskWithCustomModel")
+class MultDatasetEvaluateTaskWithCustomModel(MultiDatasetEvaluateTask, TaskWithCustomModel):
     """
     An evaluation task for custom models. Inherits from `EvaluateTask` and `TaskWithCustomModel`.
     """
 
-    config: EvaluateConfig
-
-    def build_model(self, model_config: Optional[Dict] = None):
+    def build_model(
+            self,
+            model_config: Optional[Dict] = None
+    ) -> ModelType:
+        # TODO: Logic loading checkpoints which is trained with PEFT.
+        #  These checkpoints typically have `adaptor_config.json` file.
         """
-        Builds and returns the custom model in evaluation mode.
+        Builds and returns a custom model for evaluation.
 
         Args:
-            model_config (Optional[Dict]): The model configuration. Defaults to `None`.
+            model_config (Optional[Dict]): The model configuration.
+            If not provided, defaults to `self.config.model_config`.
 
         Returns:
-            PreTrainedModel: The custom model in evaluation mode.
+            PreTrainedModel: The custom model for evaluation.
         """
-        return super().build_model(model_config=model_config).eval()
+        model_config = model_config \
+            if model_config is not None else self.config.model_config.copy()
+
+        model_cls = registry.get_model_class(model_config.model_cls)
+
+        assert model_cls is not None, f"Model {model_cls} not properly registered."
+
+        model = model_cls.from_pretrained(**model_config.config)
+
+        return model.cuda().eval()
+
+    def build_datasets(
+            self,
+            dataset_config: Optional[Dict] = None
+    ) -> Dict[str, BuilderType]:
+        return MultiDatasetEvaluateTask.build_datasets(
+            self,
+            dataset_config=dataset_config,
+        )
+
+    def build_processor(
+            self,
+            processor_config: Optional[Dict] = None
+    ) -> ProcessorType:
+        return TaskWithCustomModel.build_processor(
+            self,
+            processor_config=processor_config,
+        )
+
+    def build_evaluator(
+            self,
+            evaluator_config: Optional[DictConfig] = None
+    ) -> EvaluatorContainer:
+        return MultiDatasetEvaluateTask.build_evaluator(
+            self,
+            evaluator_config=evaluator_config,
+        )

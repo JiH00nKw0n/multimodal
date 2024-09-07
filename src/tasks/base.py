@@ -1,23 +1,33 @@
 import logging
-import os
-from typing import Any, Optional, Dict, Type, Union, TypeVar
+from typing import Any, Optional, Dict, Type, TypeVar
 
 from datasets import Dataset, IterableDataset
 from omegaconf import DictConfig
-from peft import get_peft_model, LoraConfig
 from pydantic import BaseModel, ConfigDict, Extra
-from transformers import AutoModel, AutoProcessor, PreTrainedModel, ProcessorMixin, add_end_docstrings
+from transformers import AutoProcessor, PreTrainedModel, ProcessorMixin, add_end_docstrings
 
-from src.utils import load_yml
+from src.common import EvaluateConfig, TrainConfig
 
+# Type aliases for common types used in task classes
 ModelType = Type[PreTrainedModel]
 ProcessorType = Type[ProcessorMixin]
 DatasetType = TypeVar("DatasetType", Dataset, IterableDataset)
 
-__all__ = ["BaseTask", "TaskWithPretrainedModel", "TaskWithCustomModel"]
+# __all__ specifies which names are public and should be accessible via 'from module import *'
+__all__ = [
+    "BaseTask",
+    "TaskWithPretrainedModel",
+    "TaskWithCustomModel",
+    "EVALUATE_TASK_DOCSTRING",
+    "BaseEvaluateTask",
+    "TRAIN_TASK_DOCSTRING",
+    "BaseTrainTask",
+]
 
+# Setting up logger for debugging purposes
 logger = logging.getLogger(__name__)
 
+# Base Task docstring for reuse across classes
 TASK_DOCSTRING = """
     A task class that defines the fundamental structure and workflow for different tasks involving models, processors, 
     and datasets. This class serves as the base class for task-specific implementations, providing an interface for 
@@ -57,34 +67,46 @@ class BaseTask(BaseModel):
     """
 
     config: Any
-
     model_config = ConfigDict(extra=Extra.forbid)
 
     @classmethod
-    def setup_task(cls, config):
+    def setup_task(cls, config: Any) -> "BaseTask":
+        """
+        Initialize and return an instance of the task using the provided configuration.
+
+        Args:
+            config (Any): The configuration for the task.
+
+        Returns:
+            BaseTask: An instance of the task.
+        """
         return cls(config=config)
 
-    @add_end_docstrings("This method must be overridden by subclasses.")
     def build_model(
             self,
             model_config: Optional[Dict] = None
-    ) -> PreTrainedModel:
+    ) -> ModelType:
+        """
+        Abstract method for building a model. Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
-    @add_end_docstrings("This method must be overridden by subclasses.")
     def build_processor(
             self,
             processor_config: Optional[Dict] = None
-    ) -> ProcessorMixin:
+    ) -> ProcessorType:
+        """
+        Abstract method for building a processor. Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
-    @add_end_docstrings("This method must be overridden by subclasses.")
     def build_datasets(
             self,
             dataset_config: Optional[Dict] = None,
-            shuffle: Optional[bool] = False,
-            buffer_size: Optional[int] = 10000
-    ) -> Union[IterableDataset, Dataset]:
+    ) -> DatasetType:
+        """
+        Abstract method for building datasets. Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
 
@@ -106,43 +128,7 @@ class TaskWithPretrainedModel(BaseTask):
             self,
             model_config: Optional[Dict] = None
     ) -> ModelType:
-        """
-        Builds a pretrained model using the provided configuration. If a LoRA configuration is specified,
-        it applies the LoRA configuration to the model for parameter-efficient fine-tuning.
-
-        Args:
-            model_config (`Optional[Dict]`, *optional*):
-                The model configuration dictionary. If not provided, uses the configuration from `self.config`.
-
-        Returns:
-            `ModelType`: The model instance loaded with optional LoRA fine-tuning.
-
-        Raises:
-            TypeError: If `model_config.lora` is neither a string nor a valid path.
-        """
-        model_config = model_config if model_config is not None else self.config.model_config.copy()
-
-        model = AutoModel.from_pretrained(**model_config.config)
-
-        if model_config.lora is not None:
-            if isinstance(model_config.lora, str):
-                lora_config = load_yml(model_config.lora)
-            elif isinstance(model_config.lora, os.PathLike):
-                lora_config = load_yml(os.fspath(model_config.lora))
-            else:
-                raise TypeError("`lora` configuration must be either a string or a valid path.")
-
-            peft_config = LoraConfig(**lora_config)
-            model = get_peft_model(model, peft_config)
-
-            logger.info(f"{repr(model)}")
-            trainable_params, all_param = model.get_nb_trainable_parameters()
-            logger.info(
-                f'ALL PARAM: {all_param} / TRAINABLE PARAM: {trainable_params} / '
-                f'RATIO: {trainable_params / all_param * 100}%'
-            )
-
-        return model.to('cuda')
+        raise NotImplementedError
 
     def build_processor(
             self,
@@ -183,56 +169,7 @@ class TaskWithCustomModel(BaseTask):
             self,
             model_config: Optional[Dict] = None
     ) -> ModelType:
-        """
-        Builds a custom model using the provided configuration from the registry. If a LoRA configuration
-        is provided for either text or vision models, it applies the configuration for parameter-efficient fine-tuning.
-
-        Args:
-            model_config (`Optional[Dict]`, *optional*):
-                The model configuration dictionary. If not provided, uses the configuration from `self.config`.
-
-        Returns:
-            `ModelType`: The custom model instance with optional LoRA fine-tuning.
-
-        Raises:
-            TypeError: If `model_config.lora` is not a valid `DictConfig` object.
-        """
-        from src.common.registry import registry
-
-        model_config = model_config if model_config is not None else self.config.model_config.copy()
-
-        # Get the model configuration and model class from the registry
-        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
-        model_cls = registry.get_model_class(model_config.model_cls)
-
-        assert model_cls is not None, "Model {} not properly registered.".format(model_cls)
-        assert model_cfg_cls is not None, "Model config {} not properly registered.".format(model_cfg_cls)
-
-        # Initialize the model configuration and model
-        model_cfg = model_cfg_cls(**model_config.config)
-        model = model_cls(model_cfg)
-
-        # Apply LoRA configurations if provided
-        if model_config.lora is not None:
-            if isinstance(model_config.lora, DictConfig):
-                text_model_config_path = model_config.lora.pop('text_model', None)
-                vision_model_config_path = model_config.lora.pop('vision_model', None)
-            else:
-                raise TypeError("LoRA configuration must be a valid `DictConfig` object.")
-
-            # Apply LoRA configuration to text model
-            if text_model_config_path is not None:
-                text_model_lora_config = load_yml(text_model_config_path)
-                text_model_peft_config = LoraConfig(**text_model_lora_config)
-                model.text_model = get_peft_model(model.text_model, text_model_peft_config)
-
-            # Apply LoRA configuration to vision model
-            if vision_model_config_path is not None:
-                vision_model_lora_config = load_yml(vision_model_config_path)
-                vision_model_peft_config = LoraConfig(**vision_model_lora_config)
-                model.vision_model = get_peft_model(model.vision_model, vision_model_peft_config)
-
-        return model.to('cuda')
+        raise NotImplementedError
 
     def build_processor(
             self,
@@ -261,3 +198,139 @@ class TaskWithCustomModel(BaseTask):
         assert processor_cls is not None, "Processor {} not properly registered.".format(processor_cls)
 
         return processor_cls.from_text_vision_pretrained(**processor_config.config)
+
+
+# Evaluate Task docstring
+EVALUATE_TASK_DOCSTRING = """
+    A task class for evaluating models using predefined or custom evaluators and datasets. 
+    The `EvaluateTask` class provides methods for building datasets and evaluators, and for adding 
+    evaluators to the container. 
+
+    Attributes:
+        config (EvaluateConfig): The configuration for the evaluation task.
+
+    Methods:
+        build_datasets(dataset_config):
+            Builds and returns datasets using the provided dataset configuration.
+
+        build_evaluator(evaluator_config):
+            Builds and returns evaluators using the provided evaluator configuration.
+"""
+
+
+@add_end_docstrings(EVALUATE_TASK_DOCSTRING)
+class BaseEvaluateTask(BaseTask):
+    """
+    An abstract base class for tasks that evaluate models using evaluators and datasets.
+    This class provides abstract methods for building datasets and evaluators, which must be
+    implemented by subclasses. Classes that inherit from `EvaluateTask` will define specific
+    evaluation logic by implementing the abstract methods.
+
+    Inherits from:
+        BaseTask: A base class that defines the common interface for all task types.
+    """
+
+    config: EvaluateConfig
+
+    def build_datasets(
+            self,
+            dataset_config: Optional[Dict] = None,
+    ):
+        """
+        Abstract method for building datasets. Must be implemented by subclasses.
+
+        Args:
+            dataset_config (Optional[Dict], *optional*): The dataset configuration. Defaults to `None`.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
+        """
+        raise NotImplementedError
+
+    def build_evaluator(
+            self,
+            evaluator_config: Optional[DictConfig] = None
+    ):
+        """
+        Abstract method for building evaluators. Must be implemented by subclasses.
+
+        Args:
+            evaluator_config (Optional[DictConfig], *optional*): The evaluator configuration. Defaults to `None`.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
+        """
+        raise NotImplementedError
+
+
+# Train Task docstring
+TRAIN_TASK_DOCSTRING = """
+    A task class for training models using predefined or custom datasets and trainers. 
+    The `BaseTrainTask` class provides methods for building datasets and trainers, and for managing 
+    the training process.
+
+    Attributes:
+        config (TrainConfig): The configuration for the training task.
+
+    Methods:
+        build_datasets(dataset_config, shuffle):
+            Builds and returns datasets using the provided
+    Methods:
+        build_datasets(dataset_config, shuffle):
+            Builds and returns datasets using the provided dataset configuration.
+
+        build_trainer(trainer_config):
+            Builds and returns a trainer using the provided trainer configuration.
+"""
+
+
+@add_end_docstrings(TRAIN_TASK_DOCSTRING)
+class BaseTrainTask(BaseTask):
+    """
+    An abstract base class for tasks that train models using datasets and trainers.
+    This class provides abstract methods for building datasets and trainers, which must be
+    implemented by subclasses. Classes that inherit from `BaseTrainTask` will define specific
+    training logic by implementing the abstract methods.
+
+    Inherits from:
+        BaseTask: A base class that defines the common interface for all task types.
+
+    Attributes:
+        config (TrainConfig): The configuration for the training task.
+    """
+
+    config: TrainConfig
+
+    def build_datasets(
+            self,
+            dataset_config: Optional[Dict] = None,
+            shuffle: Optional[bool] = False,
+            buffer_size: Optional[int] = 10000
+    ):
+        """
+        Abstract method for building datasets. Must be implemented by subclasses.
+
+        Args:
+            dataset_config (Optional[Dict], *optional*): The dataset configuration. Defaults to `None`.
+            shuffle (Optional[bool], *optional*): Whether to shuffle the dataset. Defaults to `False`.
+            buffer_size (Optional[int], *optional*): Buffer size for shuffling. Defaults to `10000`.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
+        """
+        raise NotImplementedError
+
+    def build_trainer(
+            self,
+            trainer_config: Optional[DictConfig] = None
+    ):
+        """
+        Abstract method for building the trainer. Must be implemented by subclasses.
+
+        Args:
+            trainer_config (Optional[DictConfig], *optional*): The trainer configuration. Defaults to `None`.
+
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
+        """
+        raise NotImplementedError

@@ -17,6 +17,7 @@ from src.common.registry import registry
 
 CollatorType = Type[BaseCollator]
 
+
 def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[list[int]]:
     padded_data = [lst + [-1] * (max_length - len(lst)) for lst in data]
 
@@ -85,7 +86,8 @@ class RetrievalEvaluator(BaseEvaluator):
 
             return batch  # 처리된 batch 반환
 
-        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False, collate_fn=process_images_in_batch)
+        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False,
+                                collate_fn=process_images_in_batch)
         for samples in tqdm(dataloader):
 
             for sample in samples:
