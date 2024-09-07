@@ -1,9 +1,16 @@
-from .base import BaseTask
+from .base import BaseTask, TaskWithPretrainedModel, TaskWithCustomModel
 from .train_task import TrainTask
 from .evaluate_task import EvaluateTask
 from src.common.registry import registry
 
-__all__ = ["BaseTask", "TrainTask", "EvaluateTask"]
+__all__ = [
+    "BaseTask",
+    "TaskWithPretrainedModel",
+    "TaskWithCustomModel",
+    "TrainTask",
+    "EvaluateTask",
+    "setup_task",
+]
 
 
 def setup_task(config):

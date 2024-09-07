@@ -1,8 +1,6 @@
 run:
   task: 'CustomModelEvaluateTask'
-  runner: 'RetrievalEvaluator'
-  seed: 2024
-  max_seq_length: 64
+  seed: &seed 2024
 
 model:
   model_cls: 'BaseModel'
@@ -18,12 +16,16 @@ processor:
       vision_pretrained_model_name_or_path: 'facebook/dinov2-base'
 
 dataset:
-  'Flickr30kDatasetBuilder':
-    split: 'test'
+  - Flickr30kDatasetBuilder:
+      split: 'test'
+
+collator:
+  max_seq_length: 64
 
 evaluator:
-  k_values:
-    - 1
-    - 5
-    - 10
-  output_dir: '/mnt/working/_result/negclip_dinov2_distillbert/checkpoint-125'
+  - RetrievalEvaluator:
+      k_values:
+        - 1
+        - 5
+        - 10
+      output_dir: '/mnt/working/_result/negclip_dinov2_distillbert/checkpoint-125'

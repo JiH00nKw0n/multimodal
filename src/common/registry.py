@@ -1,11 +1,13 @@
-from typing import TypeVar
+from typing import Type, TypeVar
+from src.collators import BaseCollator
+from transformers import ProcessorMixin, PretrainedConfig, PreTrainedModel, Trainer
 
-ProcessorType = TypeVar("ProcessorType", bound="ProcessorMixin")
-CollatorType = TypeVar("CollatorType", bound="BaseCollator")
+ProcessorType = Type[ProcessorMixin]
+CollatorType = Type[BaseCollator]
 TaskType = TypeVar("TaskType", bound="BaseTask")
-ModelType = TypeVar("ModelType", bound="PreTrainedModel")
-ModelConfigType = TypeVar("ModelConfigType", bound="PretrainedConfig")
-TrainerType = TypeVar("TrainerType", bound="Trainer")
+ModelType = Type[PreTrainedModel]
+ModelConfigType = Type[PretrainedConfig]
+TrainerType = Type[Trainer]
 BuilderType = TypeVar("BuilderType", bound="BaseBuilder")
 EvaluatorType = TypeVar("EvaluatorType", bound="BaseEvaluator")
 
@@ -47,7 +49,6 @@ class Registry:
         """
 
         def wrap(processor_cls) -> ProcessorType:
-            from transformers import ProcessorMixin
 
             assert issubclass(
                 processor_cls, ProcessorMixin
@@ -76,7 +77,6 @@ class Registry:
         """
 
         def wrap(collator_cls) -> CollatorType:
-            from src.collators.collator import BaseCollator
 
             assert issubclass(
                 collator_cls, BaseCollator
@@ -134,7 +134,6 @@ class Registry:
         """
 
         def wrap(trainer_cls) -> TrainerType:
-            from transformers import Trainer
 
             assert issubclass(
                 trainer_cls, Trainer
@@ -192,7 +191,6 @@ class Registry:
         """
 
         def wrap(model_cls) -> ModelType:
-            from transformers import PreTrainedModel
 
             assert issubclass(
                 model_cls, PreTrainedModel
@@ -221,7 +219,6 @@ class Registry:
         """
 
         def wrap(config_cls) -> ModelConfigType:
-            from transformers import PretrainedConfig
 
             assert issubclass(
                 config_cls, PretrainedConfig

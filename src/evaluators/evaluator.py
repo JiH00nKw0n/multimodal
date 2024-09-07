@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import List, Optional, Any, Union, Tuple, Dict
+from typing import List, Optional, Any, Union, Tuple, Dict, Type
 
 import numpy as np
 import torch
@@ -11,10 +11,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from transformers import PreTrainedModel
 
 from src import process_batch_async
-from src.common.collator import SequenceTextCollator, convert_to_rgb
+from src.collators import BaseCollator
 from datasets import Dataset, tqdm
 from src.common.registry import registry
 
+CollatorType = Type[BaseCollator]
 
 def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[list[int]]:
     padded_data = [lst + [-1] * (max_length - len(lst)) for lst in data]
@@ -23,21 +24,30 @@ def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[l
 
 
 class BaseEvaluator(BaseModel):
-    model: PreTrainedModel
-    data_collator: SequenceTextCollator
-    evaluate_dataset: Dataset
+    model: Optional[PreTrainedModel] = None
+    data_collator: Optional[CollatorType] = None
+    dataset_name: Optional[str] = None
+    evaluate_dataset: Optional[Dataset] = None
     output_dir: Optional[Union[str, os.PathLike]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def model_post_init(self, __context: Any) -> None:
         self.model.eval()
+        self.dataset_name = self.dataset_name.upper()
 
-    def _encode_dataset(self, batch_size: int):
+    def _encode_dataset(self, batch_size: int = 128):
         raise NotImplementedError
 
-    def evaluate(self, batch_size: int):
+    def evaluate(self, batch_size: int = 128):
         raise NotImplementedError
+
+    def _save_result(self, result: Dict):
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        if self.output_dir is not None:
+            with open(os.path.join(self.output_dir, f'{self.dataset_name}.json'), "w") as f:
+                json.dump(result, f, indent=2)
 
 
 @registry.register_evaluator("RetrievalEvaluator")

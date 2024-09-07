@@ -11,5 +11,6 @@ __all__ = [
     "setup_logger",
     "Logger",
     "CustomWandbCallback",
-    "ImageSimilarityCalculator"
+    "ImageSimilarityCalculator",
+    "experimental"
 ]

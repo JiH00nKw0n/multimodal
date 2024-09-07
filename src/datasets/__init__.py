@@ -19,5 +19,15 @@ __all__ = [
     'COCOCaptionsIterableDatasetBuilder',
     'COCOCaptionsWithHNDatasetBuilder',
     'COCOCaptionsWithMinedHNDatasetBuilder',
-    'Flickr30kDatasetBuilder'
+    'Flickr30kDatasetBuilder',
+    'BUILDER_EVALUATOR_MAPPING',
+    'BUILDER_TRAINER_MAPPING',
 ]
+
+BUILDER_EVALUATOR_MAPPING = {
+
+}
+
+BUILDER_TRAINER_MAPPING = {
+
+}
