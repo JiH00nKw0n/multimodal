@@ -24,33 +24,6 @@ def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[l
     return padded_data
 
 
-class BaseEvaluator(BaseModel):
-    model: Optional[PreTrainedModel] = None
-    data_collator: Optional[CollatorType] = None
-    dataset_name: Optional[str] = None
-    evaluate_dataset: Optional[Dataset] = None
-    output_dir: Optional[Union[str, os.PathLike]] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def model_post_init(self, __context: Any) -> None:
-        self.model.eval()
-        self.dataset_name = self.dataset_name.upper()
-
-    def _encode_dataset(self, batch_size: int = 128):
-        raise NotImplementedError
-
-    def evaluate(self, batch_size: int = 128):
-        raise NotImplementedError
-
-    def _save_result(self, result: Dict):
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        if self.output_dir is not None:
-            with open(os.path.join(self.output_dir, f'{self.dataset_name}.json'), "w") as f:
-                json.dump(result, f, indent=2)
-
-
 @registry.register_evaluator("RetrievalEvaluator")
 class RetrievalEvaluator(BaseEvaluator):
     k_values: Optional[List[int]] = None

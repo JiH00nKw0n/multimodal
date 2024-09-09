@@ -1,60 +1,102 @@
-from typing import Optional
-import torch
-from torch.utils.data import Dataset, RandomSampler
-from transformers.trainer_utils import has_length
+import json
+import os
+from typing import Any, Dict, Optional, Type, Union
+
+from datasets import Dataset
+from pydantic import BaseModel, ConfigDict
+from transformers import PreTrainedModel, Trainer
 from transformers.utils import logging
-from transformers import Trainer
-from src.common.registry import registry
-from src.models.modeling_base import contrastive_loss
+
+from src.collators import BaseCollator
 
 logger = logging.get_logger(__name__)
 
-__all__ = ['BaseTrainer']
+CollatorType = Type[BaseCollator]
+
+__all__ = ["BaseTrainer", "BaseEvaluator"]
 
 
-def neg_clip_loss(similarity: torch.Tensor) -> torch.Tensor:
-    caption_loss = contrastive_loss(similarity)
-    image_loss = contrastive_loss(similarity.t()[:len(similarity)])
-    return (caption_loss + image_loss) / 2.0
-
-
-@registry.register_trainer('BaseTrainer')
 class BaseTrainer(Trainer):
-    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
-        """
-        Basic RandomSampler.
-        """
-        if self.train_dataset is None or not has_length(self.train_dataset):
-            return None
-        if self.args.group_by_length:
-            raise ValueError("Argument `group_by_length` must be `False`.")
-        else:
-            return RandomSampler(self.train_dataset)
+    """
+    A subclass of the Hugging Face `Trainer` class, designed to be extended with additional
+    training logic and customized behavior.
+    """
+    pass
 
 
-@registry.register_trainer('NegCLIPTrainer')
-class NegCLIPTrainer(BaseTrainer):
-    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
-        """
-        Basic RandomSampler.
-        """
-        if self.train_dataset is None or not has_length(self.train_dataset):
-            return None
-        if self.args.group_by_length:
-            raise ValueError("Argument `group_by_length` must be `False`.")
-        else:
-            return RandomSampler(self.train_dataset)
+class BaseEvaluator(BaseModel):
+    """
+    A base class for model evaluation. This class provides a structure for evaluating models 
+    using various datasets, collators, and model configurations. 
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        inputs = dict(inputs, **{
-            'return_dict': True,
-            'return_loss': False,
-        })
-        outputs = model(**inputs)
-        torch.cuda.empty_cache()
-        logits_per_image = outputs.logits_per_image
+    Attributes:
+        model (`Optional[PreTrainedModel]`): The model to be evaluated.
+        data_collator (`Optional[CollatorType]`): A custom collator for preparing the data during evaluation.
+        dataset_name (`Optional[str]`): Name of the dataset used for evaluation.
+        evaluate_dataset (`Optional[Dataset]`): The dataset used for evaluation.
+        output_dir (`Optional[Union[str, os.PathLike]]`): Directory where evaluation results will be saved.
+    """
 
-        loss = neg_clip_loss(logits_per_image)
-        torch.cuda.empty_cache()
-        
-        return (loss, outputs) if return_outputs else loss
+    model: Optional[PreTrainedModel] = None
+    data_collator: Optional[CollatorType] = None
+    dataset_name: Optional[str] = None
+    evaluate_dataset: Optional[Dataset] = None
+    output_dir: Optional[Union[str, os.PathLike]] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Post-initialization method to set the model in evaluation mode and format the dataset name.
+
+        Args:
+            __context (`Any`): Context or additional information required for post-initialization.
+        """
+        self.model.eval()
+        self.dataset_name = self.dataset_name.upper()
+
+    def _encode_dataset(self, batch_size: int = 128):
+        """
+        Encodes the dataset for evaluation. This method must be implemented by subclasses.
+
+        Args:
+            batch_size (`int`, *optional*, defaults to 128): The batch size for encoding the dataset.
+
+        Raises:
+            `NotImplementedError`: If the method is not implemented in the subclass.
+        """
+        raise NotImplementedError
+
+    def evaluate(self, batch_size: int = 128):
+        """
+        Evaluates the model on the provided dataset. This method must be implemented by subclasses.
+
+        Args:
+            batch_size (`int`, *optional*, defaults to 128): The batch size for evaluation.
+
+        Raises:
+            `NotImplementedError`: If the method is not implemented in the subclass.
+
+        Note:
+            This method overrides the `__call__` special method.
+            Although the forward pass is defined here, you should call the [`Module`] instance itself instead 
+            of this method directly as the former ensures pre- and post-processing.
+        """
+        raise NotImplementedError
+
+    def _save_result(self, result: Dict):
+        """
+        Saves the evaluation results to a JSON file in the specified output directory.
+
+        Args:
+            result (`Dict`): A dictionary containing the evaluation results.
+
+        Notes:
+            - Creates the output directory if it doesn't exist.
+            - The results are saved under the filename `{dataset_name}.json`.
+        """
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        if self.output_dir is not None:
+            with open(os.path.join(self.output_dir, f'{self.dataset_name}.json'), "w") as f:
+                json.dump(result, f, indent=2)
