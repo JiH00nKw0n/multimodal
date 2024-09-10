@@ -1,12 +1,12 @@
-import json
 import os
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import numpy as np
+import pandas as pd
 import pytrec_eval
 import torch
-from datasets import tqdm
+from datasets import DatasetDict, tqdm
 from pydantic import Field
 from torch.utils.data import DataLoader
 
@@ -40,6 +40,38 @@ def dummy_collator(batch: List[Dict]) -> List[Dict]:
     return batch
 
 
+def process_samples(_samples: List[dict]) -> List[dict]:
+    """
+    Processes input samples to handle cases where multiple texts correspond to one image.
+    If a sample contains multiple texts, it duplicates the sample for each text.
+
+    Args:
+        _samples (List[dict]): The input samples, where each sample contains `images` and `text`.
+
+    Returns:
+        List[dict]: A list of processed samples, ensuring each sample contains a single text.
+    """
+    _processed_samples = []
+    for _sample in _samples:
+        _text_sample = _sample['text']
+        if isinstance(_text_sample, str):
+            _processed_samples.append(_sample)
+        elif isinstance(_text_sample, list):
+            _first_sample = _sample.copy()
+            _first_sample['text'] = _text_sample[0]
+            _processed_samples.append(_first_sample)
+
+            for _text in _text_sample[1:]:
+                _other_sample = {'images': None, 'text': _text}
+                _processed_samples.append(_other_sample)
+        else:
+            raise TypeError(
+                f"Expected `text` to be of type `str` or `list`, but got {type(_text_sample)}"
+            )
+
+    return _processed_samples
+
+
 @registry.register_evaluator("RetrievalEvaluator")
 class RetrievalEvaluator(BaseEvaluator):
     """
@@ -61,7 +93,8 @@ class RetrievalEvaluator(BaseEvaluator):
     image_embeds: List[torch.Tensor] = Field(default_factory=list)
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
-    def _encode_dataset(self, batch_size: int = 128) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    @torch.no_grad()
+    def _encode_dataset(self, batch_size: int = 128):
         """
         Encodes the dataset by processing image and text inputs, generating the necessary embeddings
         for evaluation. The dataset is iterated in batches, and the text and image embeddings are accumulated.
@@ -70,57 +103,25 @@ class RetrievalEvaluator(BaseEvaluator):
             batch_size (int, optional): The number of samples per batch (default is 128).
 
         Returns:
-            Tuple[List[torch.Tensor], List[torch.Tensor]]:
-                - text_embeds: The text embeddings for the dataset.
-                - image_embeds: The image embeddings for the dataset.
+            None
 
         Raises:
             TypeError: If `text` in the dataset is not of type `str` or `list`.
         """
 
-        def process_samples(_samples: List[dict]) -> List[dict]:
-            """
-            Processes input samples to handle cases where multiple texts correspond to one image.
-            If a sample contains multiple texts, it duplicates the sample for each text.
-
-            Args:
-                _samples (List[dict]): The input samples, where each sample contains `images` and `text`.
-
-            Returns:
-                List[dict]: A list of processed samples, ensuring each sample contains a single text.
-            """
-            processed_samples = []
-            for _sample in _samples:
-                _text_sample = _sample['text']
-                if isinstance(_text_sample, str):
-                    processed_samples.append(_sample)
-                elif isinstance(_text_sample, list):
-                    _first_sample = _sample.copy()
-                    _first_sample['text'] = _text_sample[0]
-                    processed_samples.append(_first_sample)
-
-                    for _text in _text_sample[1:]:
-                        _other_sample = {'images': None, 'text': _text}
-                        processed_samples.append(_other_sample)
-                else:
-                    raise TypeError(
-                        f"Expected `text` to be of type `str` or `list`, but got {type(_text_sample)}"
-                    )
-
-            return processed_samples
-
         image_idx = 0
         text_idx = 0
 
         # Load dataset using a DataLoader, with the dummy_collator handling input structure
-        dataloader = DataLoader(
+        dataloader = tqdm(DataLoader(
             self.evaluate_dataset,
             batch_size=batch_size,
             shuffle=False,
             collate_fn=dummy_collator
-        )
+        ))
+        dataloader.set_description("Computing retrieval scores")
 
-        for samples in tqdm(dataloader):
+        for samples in dataloader:
             for sample in samples:
                 text_sample = sample['text']
                 image_sample = f"image_{image_idx}"
@@ -149,18 +150,15 @@ class RetrievalEvaluator(BaseEvaluator):
             processed_samples = process_samples(samples)
             inputs = self.data_collator(processed_samples)
 
-            with torch.no_grad():
-                outputs = self.model(**inputs)
+            outputs = self.model(**inputs)
 
-                _text_embeds = outputs.text_embeds
-                _image_embeds = outputs.image_embeds
+            _text_embeds = outputs.text_embeds
+            _image_embeds = outputs.image_embeds
 
             self.text_embeds.extend(_text_embeds)
             self.image_embeds.extend(_image_embeds)
 
-        # No need to return the mappings as they are directly stored in qrels
-        return self.text_embeds, self.image_embeds
-
+    @torch.no_grad()
     def evaluate(self, batch_size: Optional[int] = 128):
         """
         Evaluates the retrieval performance using pytrec_eval for metrics calculation.
@@ -175,14 +173,16 @@ class RetrievalEvaluator(BaseEvaluator):
         k_values = self.k_values if self.k_values is not None else [1, 5, 10]
 
         print("Encoding all data...")
-        text_embeds, image_embeds = self._encode_dataset(batch_size=batch_size)
+        self._encode_dataset(batch_size=batch_size)
+
+        text_embeds = self.text_embeds
+        image_embeds = self.image_embeds
 
         num_text = len(text_embeds)
         num_im = len(image_embeds)
 
         # Compute similarity matrix between text and image embeddings
-        with torch.no_grad():
-            dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
+        dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
         dist_matrix = dist_matrix.cpu().detach()
 
         # Create run dictionaries for pytrec_eval
@@ -273,6 +273,7 @@ class WinogroundEvaluator(BaseEvaluator):
 
     winoground_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
+    @torch.no_grad()
     def _encode_dataset(self, batch_size: int = 128):
         """
         Encodes the dataset by preparing inputs for different image-text combinations and generates scores
@@ -284,12 +285,13 @@ class WinogroundEvaluator(BaseEvaluator):
         Raises:
             TypeError: If the inputs are not correctly formatted for encoding.
         """
-        dataloader = DataLoader(
+        dataloader = tqdm(DataLoader(
             self.evaluate_dataset,
             batch_size=batch_size,
             shuffle=False,
             collate_fn=dummy_collator
-        )
+        ))
+        dataloader.set_description("Computing Winoground scores")
 
         for samples in dataloader:
             # Prepare inputs for each possible combination of text and image
@@ -313,12 +315,11 @@ class WinogroundEvaluator(BaseEvaluator):
             # Collect IDs for each example in the batch
             ids = list(map(lambda d: d['id'], samples))
 
-            with torch.no_grad():
-                # Generate output logits for each text-image combination
-                output_c0_i0 = self.model(**input_c0_i0)
-                output_c1_i0 = self.model(**input_c1_i0)
-                output_c0_i1 = self.model(**input_c0_i1)
-                output_c1_i1 = self.model(**input_c1_i1)
+            # Generate output logits for each text-image combination
+            output_c0_i0 = self.model(**input_c0_i0)
+            output_c1_i0 = self.model(**input_c1_i0)
+            output_c0_i1 = self.model(**input_c0_i1)
+            output_c1_i1 = self.model(**input_c1_i1)
 
             # Extract scores for each example and store in winoground_scores
             for idx, example_id in enumerate(ids):
@@ -366,10 +367,10 @@ class WinogroundEvaluator(BaseEvaluator):
 
         # Save results to output directory
         self._save_result({
-                    "text score": round(text_correct_count / denominator, 3),
-                    "image score": round(image_correct_count / denominator, 3),
-                    "group score": round(group_correct_count / denominator, 3),
-                })
+            "text score": round(text_correct_count / denominator, 3),
+            "image score": round(image_correct_count / denominator, 3),
+            "group score": round(group_correct_count / denominator, 3),
+        })
 
 
 @registry.register_evaluator("SVOEvaluator")
@@ -384,6 +385,7 @@ class SVOEvaluator(BaseEvaluator):
 
     svo_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
+    @torch.no_grad()
     def _encode_dataset(self, batch_size: int = 128):
         """
         Encodes the dataset by processing image and text inputs for positive and negative samples and
@@ -421,12 +423,13 @@ class SVOEvaluator(BaseEvaluator):
 
             return return_list
 
-        dataloader = DataLoader(
+        dataloader = tqdm(DataLoader(
             self.evaluate_dataset,
             batch_size=batch_size,
             shuffle=False,
             collate_fn=dummy_collator
-        )
+        ))
+        dataloader.set_description("Computing SVO scores")
 
         for samples in dataloader:
             # Prepare inputs for positive and negative image-text pairs
@@ -442,10 +445,9 @@ class SVOEvaluator(BaseEvaluator):
 
             ids = _get_id_list(s=samples)
 
-            with torch.no_grad():
-                # Get model outputs for positive and negative samples
-                output_pos = self.model(**input_pos)
-                output_neg = self.model(**input_neg)
+            # Get model outputs for positive and negative samples
+            output_pos = self.model(**input_pos)
+            output_neg = self.model(**input_neg)
 
             # Store scores for each sample
             for idx, example_id in enumerate(ids):
@@ -471,21 +473,21 @@ class SVOEvaluator(BaseEvaluator):
         """
         self._encode_dataset(batch_size=batch_size)
 
-        def accuracy(samples: List[Dict]) -> Tuple[float, float, float]:
+        def accuracy(_samples: List[Dict]) -> Tuple[float, float, float]:
             """
             Calculates the accuracy for positive and negative image-text matches.
 
             Args:
-                samples (List[Dict]): A list of dictionaries containing the scores for each sample.
+                _samples (List[Dict]): A list of dictionaries containing the scores for each sample.
 
             Returns:
                 Tuple[float, float, float]: The overall accuracy, positive accuracy, and negative accuracy.
             """
             # Calculate negative image accuracy (where `neg_scores` should be False)
-            _neg_acc = np.mean([not sample['neg_scores'] for sample in samples])
+            _neg_acc = np.mean([not sample['neg_scores'] for sample in _samples])
 
             # Calculate positive image accuracy (where `pos_scores` should be True)
-            _pos_acc = np.mean([sample['pos_scores'] for sample in samples])
+            _pos_acc = np.mean([sample['pos_scores'] for sample in _samples])
 
             # Calculate overall accuracy (macro accuracy)
             _acc = (_neg_acc + _pos_acc) / 2.0
@@ -540,61 +542,347 @@ class SVOEvaluator(BaseEvaluator):
 
 @registry.register_evaluator("AROEvaluator")
 class AROEvaluator(BaseEvaluator):
-    aro_scores: List[Dict[Any, Any]] = Field(default_factory=list)
+    """
+    AROEvaluator class evaluates various relationships and attributes in the Visual Genome dataset
+    as well as other datasets using a pretrained model. It calculates various scores for attributes,
+    relations, and orders of objects based on the model outputs.
 
+    Args:
+        evaluate_dataset (Optional[DatasetDict]): The dataset to evaluate.
+        aro_scores (Optional[Dict[str, torch.Tensor]]): A dictionary to store the computed ARO scores.
+        all_attributes (Optional[List[str]]): A list of all attributes from the VG_Attributes dataset.
+        all_relations (Optional[List[str]]): A list of all relations from the VG_Attributes dataset.
+    """
+    evaluate_dataset: Optional[DatasetDict] = None
+    aro_scores: Optional[Dict[str, torch.Tensor]] = Field(default_factory=dict)
+    all_attributes: Optional[List[str]] = Field(default_factory=list)
+    all_relations: Optional[List[str]] = Field(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Initializes the evaluator by extracting all attributes and relations from the dataset.
+        This method is called after the model is loaded and ready.
+
+        Args:
+            __context (Any): The context passed from the model initialization process.
+        """
+        self.all_attributes = [
+            f"{item['attributes'][0]}_{item['attributes'][1]}" for item in self.evaluate_dataset['VG_Attributes']
+        ]
+        self.all_relations = [
+            item['relation_name'] for item in self.evaluate_dataset['VG_Attributes']
+        ]
+        super().model_post_init(__context)
+
+    @torch.no_grad()
     def _encode_dataset(self, batch_size: int = 128):
-        pass
+        """
+        Encodes the dataset to generate image and text embeddings for evaluation.
+
+        Args:
+            batch_size (int): The number of samples per batch.
+        """
+        for name, dataset in self.evaluate_dataset.items():
+            dataloader = tqdm(DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=dummy_collator
+            ))
+            dataloader.set_description(f"Computing ARO {name} scores")
+
+            scores = []
+
+            for samples in dataloader:
+
+                batch_image_embeds = []
+                batch_text_embeds = []
+
+                for sample in samples:
+                    inputs = self.data_collator(process_samples(list({
+                        'text': [*sample['true_caption'], *sample['false_caption']],
+                        'images': sample['images'],
+                    })))
+                    outputs = self.model(**inputs)
+
+                    _text_embeds = outputs.text_embeds.cpu()
+                    _image_embeds = outputs.image_embeds.cpu()
+
+                    batch_text_embeds.append(_text_embeds.unsqueeze(1))
+                    batch_image_embeds.append(_image_embeds.unsqueeze(1))
+
+                batch_text_embeds = torch.cat(batch_text_embeds, dim=1)
+                batch_image_embeds = torch.cat(batch_image_embeds, dim=1)
+
+                batch_scores = torch.matmul(batch_image_embeds, batch_text_embeds.permute(0, 2, 1))
+
+                scores.append(batch_scores)
+
+            all_scores = torch.cat(scores, dim=0)
+
+            self.aro_scores[name] = all_scores
+
+    def evaluate_relation(self):
+        """
+        Evaluates the model's performance on the Visual Genome relations dataset.
+
+        Returns:
+            dict: A dictionary containing the accuracy scores for each relation in the dataset.
+        """
+        scores = self.aro_scores['VG_Relation']
+
+        preds = torch.argmax(scores.squeeze(1), dim=-1)
+        correct_mask: torch.BoolTensor = (preds == 0)
+
+        result_records = []
+
+        all_relations = np.array(self.all_relations)
+
+        for attr in np.unique(all_relations):
+            relation_mask = [a == attr for a in all_relations]
+            relation_mask = torch.tensor(relation_mask)
+
+            if relation_mask.sum() == 0:
+                continue
+
+            accuracy = correct_mask[relation_mask].float().mean().item()
+
+            result_records.append({
+                "Relation": attr,
+                "Accuracy": accuracy,
+                "Count": relation_mask.sum().item(),
+                "Dataset": "Visual Genome Relation"
+            })
+
+        return {'VG_Relation': result_records}
+
+    def evaluate_attribute(self):
+        """
+        Evaluates the model's performance on the Visual Genome attributes dataset.
+
+        Returns:
+            dict: A dictionary containing the accuracy scores for each attribute in the dataset.
+        """
+        scores = self.aro_scores['VG_Attribute']
+
+        preds = torch.argmax(scores.squeeze(1), dim=-1)
+        correct_mask: torch.BoolTensor = (preds == 0)
+
+        result_records = []
+
+        all_attributes = np.array(self.all_attributes)
+
+        for attr in np.unique(all_attributes):
+            attr_mask = [a == attr for a in all_attributes]
+            attr_mask_tensor = torch.tensor(attr_mask)
+
+            if attr_mask_tensor.sum() < 25:
+                continue
+
+            accuracy = correct_mask[attr_mask_tensor].float().mean().item()
+
+            result_records.append({
+                "Attributes": attr,
+                "Accuracy": accuracy,
+                "Count": attr_mask_tensor.sum().item(),
+                "Dataset": "Visual Genome Attribution"
+            })
+
+        return {'VG_Attribute': result_records}
+
+    def evaluate_order(self):
+        """
+        Evaluates the model's performance on the COCO and Flickr order datasets.
+
+        Returns:
+            dict: A dictionary containing the Precision@1 scores for both the COCO and Flickr datasets.
+        """
+        coco_scores = self.aro_scores['COCO_Order']
+        flickr_scores = self.aro_scores['Flickr_Order']
+
+        coco_preds = torch.argmax(coco_scores.squeeze(1), dim=-1)
+        flickr_preds = torch.argmax(flickr_scores.squeeze(1), dim=-1)
+        coco_correct_mask: torch.BoolTensor = (coco_preds == 0)
+        flickr_correct_mask: torch.BoolTensor = (flickr_preds == 0)
+
+        result_records = {
+            'COCO_Order': [{"Precision@1": coco_correct_mask.mean().item()}],
+            'Flickr_Order': [{"Precision@1": flickr_correct_mask.mean().item()}],
+        }
+
+        return result_records
 
     def evaluate(self, batch_size: int = 128):
         """
-            Scores: N x 1 x 2, i.e. first caption is the perturbed one, second is the positive one
+        Evaluates the model's performance across attributes, relations, and order datasets.
+        Saves the evaluation results as CSV files.
+
+        Args:
+            batch_size (int): The number of samples per batch.
+
+        Returns:
+            None
         """
         self._encode_dataset(batch_size=batch_size)
 
-        # if isinstance(scores, tuple):
-        #     scores_i2t = scores[1]
-        #     scores_t2i = scores[0]
-        # else:
-        #     scores_t2i = scores
-        #     scores_i2t = scores
-        #
-        # preds = np.argmax(np.squeeze(scores_i2t, axis=1), axis=-1)
-        # correct_mask = (preds == 1)
-        # result_records = []
-        # all_attributes = np.array(self.all_attributes)
-        # for attr in np.unique(all_attributes):
-        #     attr_mask = (all_attributes == attr)
-        #     if attr_mask.sum() < 25:
-        #         continue
-        #     result_records.append({
-        #         "Attributes": attr,
-        #         "Accuracy": correct_mask[attr_mask].mean(),
-        #         "Count": attr_mask.sum(),
-        #         "Dataset": "Visual Genome Attribution"
-        #     })
-        # return result_records
+        results = {
+            **self.evaluate_attribute(),
+            **self.evaluate_relation(),
+            **self.evaluate_order()
+        }
+
+        os.makedirs(os.path.join(self.output_dir, 'ARO'), exist_ok=True)
+
+        for dataset_name, result_records in results.items():
+            output_file = os.path.join(self.output_dir, 'ARO', f'{dataset_name}.csv')
+            df = pd.DataFrame(result_records)
+            df.to_csv(output_file)
 
 
 @registry.register_evaluator("CrepeEvaluator")
 class CrepeEvaluator(BaseEvaluator):
-    crepe_scores: List[Dict[Any, Any]] = Field(default_factory=list)
+    """
+    CrepeEvaluator class evaluates the model's performance by calculating the ranking of text-image pairs
+    based on the similarity of image to text logits using a trained model.
 
+    Attributes:
+        crepe_scores (List[float]): A list to store the rank of each image to text retrieval result.
+    """
+    crepe_scores: List[float] = Field(default_factory=list)
+
+    @torch.no_grad()
     def _encode_dataset(self, batch_size: int = 128):
-        pass
+        """
+        Encodes the dataset by passing image-text pairs through the model and computes the rank of each pair.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch. Defaults to 128.
+        """
+        dataloader = tqdm(DataLoader(
+            self.evaluate_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=dummy_collator
+        ))
+        dataloader.set_description(f"Computing CREPE scores")
+
+        for samples in dataloader:
+            for sample in samples:
+                inputs = self.data_collator(process_samples(list({
+                    'text': [*sample['text'], *sample['hard_texts']],
+                    'images': sample['images'],
+                })))
+                outputs = self.model(**inputs)
+
+                logits_per_image = outputs.logits_per_image
+                ranking = torch.argsort(logits_per_image, descending=True)
+                rank = torch.where(ranking == 0)[1].item()
+                self.crepe_scores.append(rank)
 
     def evaluate(self, batch_size: int = 128):
-        pass
+        """
+        Evaluates the dataset by computing image-to-text retrieval metrics based on ranks.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch. Defaults to 128.
+
+        Returns:
+            None. The results are saved using the `_save_result` method.
+        """
+        self._encode_dataset(batch_size=batch_size)
+        preds = np.array(self.crepe_scores)
+
+        metrics = {
+            "image_to_text_mean_rank": preds.mean() + 1,
+            "image_to_text_rank_std": preds.std(),
+            "image_to_text_median_rank": np.floor(np.median(preds)) + 1
+        }
+
+        for k in [1, 3, 5, 10]:
+            metrics[f"image_to_text_R@{k}"] = np.mean(preds < k)
+            metrics[f"image_to_text_R@{k}_std"] = np.std(preds < k)
+
+        self._save_result(metrics)
 
 
 @registry.register_evaluator("SugarCrepeEvaluator")
 class SugarCrepeEvaluator(BaseEvaluator):
-    sugar_crepe_scores: List[Dict[Any, Any]] = Field(default_factory=list)
+    """
+    SugarCrepeEvaluator class evaluates model performance by categorizing image-text pairs
+    based on different types of negative captions and calculating accuracy for each type.
+
+    Attributes:
+        sugar_crepe_scores (Dict[str, float]): A dictionary to store accuracy scores for different
+            negative caption types (e.g., 'add_obj', 'replace_obj', etc.).
+    """
+    sugar_crepe_scores: Dict[str, float] = Field(default_factory=dict)
 
     def _encode_dataset(self, batch_size: int = 128):
-        pass
+        """
+        Encodes the dataset by filtering image-text pairs based on negative caption types
+        and calculates the accuracy for each type.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch. Defaults to 128.
+        """
+        data_dict: DatasetDict = DatasetDict({
+            'add_obj': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'add_obj'),
+            'add_att': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'add_att'),
+            'replace_obj': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'replace_obj'),
+            'replace_att': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'replace_att'),
+            'replace_rel': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'replace_rel'),
+            'swap_obj': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'swap_obj'),
+            'swap_att': self.evaluate_dataset.filter(lambda example: example['Negative_type'] == 'swap_att'),
+        })
+
+        for name, dataset in data_dict.items():
+            dataloader = tqdm(DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                collate_fn=dummy_collator
+            ))
+            dataloader.set_description(f"Computing SUGARCREPE {name} scores")
+
+            count = len(dataset)
+            correct_cnt = 0
+            for samples in dataloader:
+                for sample in samples:
+                    inputs = self.data_collator(process_samples(list({
+                        'text': [*sample['text'], *sample['hard_texts']],
+                        'images': sample['images'],
+                    })))
+                    outputs = self.model(**inputs)
+
+                    logits_per_image = outputs.logits_per_image
+                    correct_cnt += int(logits_per_image[0, 0] > logits_per_image[0, 1])
+
+            # Calculate the accuracy for each negative type
+            self.sugar_crepe_scores[name] = correct_cnt / count
 
     def evaluate(self, batch_size: int = 128):
-        pass
+        """
+        Evaluates the model's performance across different negative types and saves the results.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch. Defaults to 128.
+
+        Returns:
+            None. The results are saved using the `_save_result` method.
+        """
+        self._encode_dataset(batch_size=batch_size)
+        self._save_result(self.sugar_crepe_scores)
+
+
+@registry.register_evaluator("SugarCrepePPEvaluator")
+class SugarCrepePPEvaluator(BaseEvaluator):
+    sugar_crepe_pp_scores: List[Dict[Any, Any]] = Field(default_factory=list)
+
+    def _encode_dataset(self, batch_size: int = 128):
+        raise NotImplementedError
+
+    def evaluate(self, batch_size: int = 128):
+        raise NotImplementedError
 
 
 @registry.register_evaluator("VLCEvaluator")
@@ -602,7 +890,7 @@ class VLCEvaluator(BaseEvaluator):
     vlc_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
-        pass
+        raise NotImplementedError
 
     def evaluate(self, batch_size: int = 128):
-        pass
+        raise NotImplementedError
