@@ -599,17 +599,31 @@ class AROEvaluator(BaseEvaluator):
                 batch_text_embeds = []
 
                 for sample in samples:
-                    inputs = self.data_collator(process_samples(list({
-                        'text': [*sample['text'], *sample['hard_texts']],
-                        'images': sample['images'],
-                    })))
-                    outputs = self.model(**inputs)
+                    if 'order' not in name.lower():
+                        inputs = self.data_collator(process_samples(list({
+                            'text': [*sample['text'], *sample['hard_texts']],
+                            'images': sample['images'],
+                        })))
+                        outputs = self.model(**inputs)
 
-                    _text_embeds = outputs.text_embeds.cpu()
-                    _image_embeds = outputs.image_embeds.cpu()
+                        _text_embeds = outputs.text_embeds.cpu()
+                        _image_embeds = outputs.image_embeds.cpu()
 
-                    batch_text_embeds.append(_text_embeds.unsqueeze(1))
-                    batch_image_embeds.append(_image_embeds.unsqueeze(1))
+                        batch_text_embeds.append(_text_embeds.unsqueeze(1))
+                        batch_image_embeds.append(_image_embeds.unsqueeze(1))
+                    else:
+                        for _text, _hard_texts in zip(sample['text'], sample['hard_texts']):
+                            inputs = self.data_collator(process_samples(list({
+                                'text': [*[_text], *_hard_texts],
+                                'images': sample['images'],
+                            })))
+                            outputs = self.model(**inputs)
+
+                            _text_embeds = outputs.text_embeds.cpu()
+                            _image_embeds = outputs.image_embeds.cpu()
+
+                            batch_text_embeds.append(_text_embeds.unsqueeze(1))
+                            batch_image_embeds.append(_image_embeds.unsqueeze(1))
 
                 batch_text_embeds = torch.cat(batch_text_embeds, dim=1)
                 batch_image_embeds = torch.cat(batch_image_embeds, dim=1)

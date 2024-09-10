@@ -49,7 +49,7 @@ class ARODatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
             "yjkimstats/ARO_Flickr30K_Order_fmt", trust_remote_code=True, split=self.split
         )
         flickr_order_dataset = flickr_order_dataset.map(
-            lambda x: {'text': [x['text'][0]], 'hard_texts': x['hard_texts'][0]}
+            lambda x: {'text': x['text'], 'hard_texts': x['hard_texts']}
         )
 
         # Load and preprocess COCO Order dataset
@@ -57,7 +57,7 @@ class ARODatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
             "yjkimstats/ARO_COCO_Order_fmt", trust_remote_code=True, split=self.split
         )
         coco_order_dataset = coco_order_dataset.map(
-            lambda x: {'text': [x['text'][0]], 'hard_texts': x['hard_texts'][0]}
+            lambda x: {'text': x['text'], 'hard_texts': x['hard_texts']}
         )
 
         # Return the combined DatasetDict
@@ -65,7 +65,7 @@ class ARODatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
             {
                 'VG_Attribute': vg_attribute_dataset.cast(self.features),
                 'VG_Relation': vg_relation_dataset.cast(self.features),
-                'Flickr_Order': flickr_order_dataset.cast(self.features),
-                'COCO_Order': coco_order_dataset.cast(self.features),
+                'Flickr_Order': flickr_order_dataset,
+                'COCO_Order': coco_order_dataset,
             }
         )
