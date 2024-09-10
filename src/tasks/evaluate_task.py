@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from transformers import add_end_docstrings, PreTrainedModel, ProcessorMixin
 
 from src.common import registry, experimental
-from src.datasets import BUILDER_EVALUATOR_MAPPING, BaseBuilder
-from src.evaluators import BaseEvaluator, EVALUATOR_COLLATOR_MAPPING
+from src.datasets import BaseBuilder
+from src.runners import BaseEvaluator
 from src.tasks.base import (
     TaskWithPretrainedModel, TaskWithCustomModel, EVALUATE_TASK_DOCSTRING, BaseEvaluateTask
 )
@@ -133,19 +133,16 @@ class MultiDatasetEvaluateTask(BaseEvaluateTask):
                 evaluator_config.items(),
                 dataset_dict.items()
         ):
-            if evaluator_cls_name not in BUILDER_EVALUATOR_MAPPING[builder_cls_name]:
-                raise TypeError(f"Evaluator {evaluator_cls_name} is not valid for builder {builder_cls_name}.")
-
             evaluator_cls = registry.get_evaluator_class(evaluator_cls_name)
             assert evaluator_cls is not None, f"Evaluator {evaluator_cls_name} not properly registered."
 
-            collator_cls_name = EVALUATOR_COLLATOR_MAPPING[evaluator_cls_name]
-            collator_cls = registry.get_collator_class(collator_cls_name)
-            assert collator_cls is not None, f"Collator {collator_cls_name} not properly registered."
+            collator_config = config.pop('collator')
+            collator_cls = registry.get_collator_class(collator_config.collator_cls)
+            assert collator_cls is not None, f"Collator {collator_cls} not properly registered."
 
             collator = collator_cls(
                 processor=processor,
-                **self.config.collator_config
+                **collator_config.config,
             )
 
             evaluate_dataset = builder.build_datasets()

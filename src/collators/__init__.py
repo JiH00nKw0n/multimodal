@@ -1,13 +1,13 @@
-from .base import BaseCollator
-from .collator import (
+from src.collators.base import BaseCollator
+from src.collators.collator import (
+    NegCLIPWithImageURLCollator,
     ImageCollator,
-    ImageURLCollator,
-    HardNegImageAndTextWithImageURLCollator
+    ImageURLCollator
 )
 
 __all__ = [
     "BaseCollator",
+    "NegCLIPWithImageURLCollator",
     "ImageCollator",
     "ImageURLCollator",
-    "HardNegImageAndTextWithImageURLCollator",
 ]

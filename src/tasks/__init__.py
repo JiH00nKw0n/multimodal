@@ -1,15 +1,46 @@
-from .base import BaseTask, TaskWithPretrainedModel, TaskWithCustomModel
-from .train_task import TrainTask
-from .evaluate_task import EvaluateTask
 from src.common.registry import registry
+from src.tasks.base import (
+    BaseTask,
+    BaseTrainTask,
+    BaseEvaluateTask,
+    TaskWithPretrainedModel,
+    TaskWithCustomModel
+)
+from src.tasks.train_task import (
+    SingleTrainTask,
+    DatasetSingleTrainTask,
+    IterableDatasetSingleTrainTask,
+    SingleTrainTaskWithCustomModel,
+    SingleTrainTaskWithPretrainedModel,
+    IterableDatasetTrainTaskWithCustomModel,
+    IterableDatasetTrainTaskWithPretrainedModel,
+    DatasetTrainTaskWithCustomModel,
+    DatasetTrainTaskWithPretrainedModel,
+)
+from .evaluate_task import (
+    MultiDatasetEvaluateTask,
+    MultiDatasetEvaluateTaskWithPretrainedModel,
+    MultDatasetEvaluateTaskWithCustomModel,
+)
 
 __all__ = [
     "BaseTask",
+    "BaseTrainTask",
+    "BaseEvaluateTask",
     "TaskWithPretrainedModel",
     "TaskWithCustomModel",
-    "TrainTask",
-    "EvaluateTask",
-    "setup_task",
+    "SingleTrainTask",
+    "DatasetSingleTrainTask",
+    "IterableDatasetSingleTrainTask",
+    "SingleTrainTaskWithCustomModel",
+    "SingleTrainTaskWithPretrainedModel",
+    "IterableDatasetTrainTaskWithCustomModel",
+    "IterableDatasetTrainTaskWithPretrainedModel",
+    "DatasetTrainTaskWithCustomModel",
+    "DatasetTrainTaskWithPretrainedModel",
+    "MultiDatasetEvaluateTask",
+    "MultiDatasetEvaluateTaskWithPretrainedModel",
+    "MultDatasetEvaluateTaskWithCustomModel",
 ]
 
 

@@ -19,11 +19,12 @@ dataset:
   - Flickr30kDatasetBuilder:
       split: 'test'
 
-collator:
-  max_seq_length: 64
-
 evaluator:
   - RetrievalEvaluator:
+      collator:
+        collator_Cls: 'ImageURLCollator'
+        config:
+          max_seq_length: 64
       k_values:
         - 1
         - 5

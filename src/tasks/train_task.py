@@ -52,13 +52,13 @@ class SingleTrainTask(BaseTrainTask):
 
         trainer_config = trainer_config if trainer_config is not None else self.config.trainer_config
 
-        collator_name = self.config.run_config.collator
-        collator_cls = registry.get_collator_class(collator_name)
+        collator_cls = registry.get_collator_class(self.config.collator_config.collator_cls)
 
-        assert collator_cls is not None, "Collator {} not properly registered.".format(collator_name)
+        assert collator_cls is not None, "Collator {} not properly registered.".format(collator_cls)
 
         collator = collator_cls(
-            processor=self.build_processor(), max_length=self.config.run_config.max_seq_length
+            processor=self.build_processor(),
+            **self.config.collator_config.config,
         )
 
         train_dataset = self.build_datasets()

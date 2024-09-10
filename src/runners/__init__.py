@@ -1,7 +1,1 @@
-EVALUATOR_COLLATOR_MAPPING = {
-
-}
-
-TRAINER_COLLATOR_MAPPING = {
-
-}
+from src.runners.base import BaseTrainer, BaseEvaluator

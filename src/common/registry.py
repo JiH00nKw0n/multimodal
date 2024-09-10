@@ -1,15 +1,17 @@
 from typing import Type, TypeVar
 from src.collators import BaseCollator
+from src.runners import BaseTrainer, BaseEvaluator
+from src.tasks import BaseTask
 from transformers import ProcessorMixin, PretrainedConfig, PreTrainedModel, Trainer
 
 ProcessorType = Type[ProcessorMixin]
 CollatorType = Type[BaseCollator]
-TaskType = TypeVar("TaskType", bound="BaseTask")
+TaskType = Type[BaseTask]
 ModelType = Type[PreTrainedModel]
 ModelConfigType = Type[PretrainedConfig]
-TrainerType = Type[Trainer]
+TrainerType = Type[BaseTrainer]
 BuilderType = TypeVar("BuilderType", bound="BaseBuilder")
-EvaluatorType = TypeVar("EvaluatorType", bound="BaseEvaluator")
+EvaluatorType = Type[BaseEvaluator]
 
 
 class Registry:

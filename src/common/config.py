@@ -5,6 +5,7 @@ from omegaconf import OmegaConf, DictConfig
 
 __all__ = ["TrainConfig", "EvaluateConfig"]
 
+
 @dataclass(config=ConfigDict(
     extra=Extra.ignore, frozen=True, strict=True, validate_assignment=True
 ))
@@ -55,8 +56,8 @@ class BaseConfig:
         return self.dataset
 
     @property
-    def collator_config(self) -> Dict:
-        return self.collator
+    def collator_config(self) -> DictConfig:
+        return OmegaConf.create(self.collator)
 
     @property
     def run_config(self) -> DictConfig:

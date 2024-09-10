@@ -1,85 +1,154 @@
-import asyncio
 import json
 import os
-from typing import List, Optional, Any, Union, Tuple, Dict, Type
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import numpy as np
+import pytrec_eval
 import torch
-from torch import Tensor
+from datasets import tqdm
+from pydantic import Field
 from torch.utils.data import DataLoader
-from pydantic import BaseModel, ConfigDict, Field
-from transformers import PreTrainedModel
 
-from src import process_batch_async
 from src.collators import BaseCollator
-from datasets import Dataset, tqdm
 from src.common.registry import registry
+from src.runners.base import BaseEvaluator
 
 CollatorType = Type[BaseCollator]
 
 
-def _pad_and_convert_to_tensor(data: List[List[int]], max_length: int) -> list[list[int]]:
-    padded_data = [lst + [-1] * (max_length - len(lst)) for lst in data]
+def dummy_collator(batch: List[Dict]) -> List[Dict]:
+    """
+    A dummy collator function to bypass type errors caused by non-tensor elements in a batch.
 
-    return padded_data
+    This collator avoids the `TypeError: batch must contain tensors, numbers, dicts or lists;
+    found <class 'PIL.Image.Image'>` when handling batches containing non-standard data types
+    like PIL images. Instead of performing tensor stacking, it simply returns the batch as-is.
+
+    Args:
+        batch (`List[Dict]`): A list of dictionaries, where each dictionary corresponds to an
+        element in the batch.
+
+    Returns:
+        `List[Dict]`: The input batch is returned unchanged.
+
+    Note:
+        For more information on the default PyTorch collator (`default_collate`), you can refer to its
+        implementation in the PyTorch repository:
+        https://github.com/pytorch/pytorch/blob/main/torch/utils/data/_utils/collate.py
+    """
+    return batch
 
 
 @registry.register_evaluator("RetrievalEvaluator")
 class RetrievalEvaluator(BaseEvaluator):
+    """
+    An evaluator class for retrieval tasks, which evaluates the model's performance on matching images to text
+    and text to images. The input dataset contains image and text embeddings, and the evaluation process computes
+    recall metrics at different `k` values.
+
+    Attributes:
+        k_values (Optional[List[int]]): A list of `k` values used to compute recall (default is `[1, 5, 10]`).
+        qrels_text_to_image (defaultdict): Mapping from text to relevant images for `pytrec_eval`.
+        qrels_image_to_text (defaultdict): Mapping from images to relevant texts for `pytrec_eval`.
+        image_embeds (List[torch.Tensor]): A list to store image embeddings during evaluation.
+        text_embeds (List[torch.Tensor]): A list to store text embeddings during evaluation.
+    """
+
     k_values: Optional[List[int]] = None
-    # image_to_text_map[i] gives the corresponding text indices for the ith image
-    # (as there are multiple pieces of text for each image)
-    image_to_text_map: List[List[int]] = Field(default_factory=list)
-
-    # text_to_image_map[i] gives the corresponding image index for the ith text
-    text_to_image_map: List[List[int]] = Field(default_factory=list)
-
+    qrels_text_to_image: defaultdict = Field(default_factory=lambda: defaultdict(dict))
+    qrels_image_to_text: defaultdict = Field(default_factory=lambda: defaultdict(dict))
     image_embeds: List[torch.Tensor] = Field(default_factory=list)
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
-    def _encode_dataset(self, batch_size: int = 128) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    def _encode_dataset(self, batch_size: int = 128) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        """
+        Encodes the dataset by processing image and text inputs, generating the necessary embeddings
+        for evaluation. The dataset is iterated in batches, and the text and image embeddings are accumulated.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Returns:
+            Tuple[List[torch.Tensor], List[torch.Tensor]]:
+                - text_embeds: The text embeddings for the dataset.
+                - image_embeds: The image embeddings for the dataset.
+
+        Raises:
+            TypeError: If `text` in the dataset is not of type `str` or `list`.
+        """
+
+        def process_samples(_samples: List[dict]) -> List[dict]:
+            """
+            Processes input samples to handle cases where multiple texts correspond to one image.
+            If a sample contains multiple texts, it duplicates the sample for each text.
+
+            Args:
+                _samples (List[dict]): The input samples, where each sample contains `images` and `text`.
+
+            Returns:
+                List[dict]: A list of processed samples, ensuring each sample contains a single text.
+            """
+            processed_samples = []
+            for _sample in _samples:
+                _text_sample = _sample['text']
+                if isinstance(_text_sample, str):
+                    processed_samples.append(_sample)
+                elif isinstance(_text_sample, list):
+                    _first_sample = _sample.copy()
+                    _first_sample['text'] = _text_sample[0]
+                    processed_samples.append(_first_sample)
+
+                    for _text in _text_sample[1:]:
+                        _other_sample = {'images': None, 'text': _text}
+                        processed_samples.append(_other_sample)
+                else:
+                    raise TypeError(
+                        f"Expected `text` to be of type `str` or `list`, but got {type(_text_sample)}"
+                    )
+
+            return processed_samples
+
         image_idx = 0
         text_idx = 0
-        max_captions_per_image = 1
 
-        def process_images_in_batch(batch):
-            # 모든 dict에서 이미지를 추출한 후 일괄 처리
-            all_images = [item['images'] for item in batch]  # 모든 dict에서 이미지 추출
+        # Load dataset using a DataLoader, with the dummy_collator handling input structure
+        dataloader = DataLoader(
+            self.evaluate_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=dummy_collator
+        )
 
-            # 비동기 처리 및 이미지 변환 적용
-            try:
-                all_images = asyncio.run(process_batch_async(all_images))  # 비동기 처리
-            except:
-                pass
-            all_images = convert_to_rgb(all_images)  # 이미지 변환 (RGB로 변환)
-
-            # 처리된 이미지를 다시 각 dict에 할당
-            for i, item in enumerate(batch):
-                item['images'] = all_images[i]  # 처리된 이미지를 해당 dict에 할당
-
-            return batch  # 처리된 batch 반환
-
-        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False,
-                                collate_fn=process_images_in_batch)
         for samples in tqdm(dataloader):
-
             for sample in samples:
                 text_sample = sample['text']
+                image_sample = f"image_{image_idx}"
+
                 if isinstance(text_sample, str):
-                    captions_per_image = 1
+                    # Handle single text for the image
+                    text_sample_name = f"text_{text_idx}"
+                    self.qrels_text_to_image[text_sample_name][image_sample] = 1
+                    self.qrels_image_to_text[image_sample][text_sample_name] = 1
+                    text_idx += 1
+
                 elif isinstance(text_sample, list):
-                    captions_per_image = len(text_sample)
-                    if captions_per_image > max_captions_per_image:
-                        max_captions_per_image = captions_per_image
+                    # Handle multiple texts for the image
+                    for _text in text_sample:
+                        text_sample_name = f"text_{text_idx}"
+                        self.qrels_text_to_image[text_sample_name][image_sample] = 1
+                        self.qrels_image_to_text[image_sample][text_sample_name] = 1
+                        text_idx += 1
+
                 else:
-                    raise TypeError()
-                text_indices = list(range(text_idx, text_idx + captions_per_image))
-                self.image_to_text_map.append(text_indices)
-                text_idx += captions_per_image
-                self.text_to_image_map += [image_idx] * captions_per_image
+                    raise TypeError(f"Expected `text` to be of type `str` or `list`, but got {type(text_sample)}")
+
                 image_idx += 1
 
-            inputs = self.data_collator(samples)
+            # Process the samples
+            processed_samples = process_samples(samples)
+            inputs = self.data_collator(processed_samples)
+
             with torch.no_grad():
                 outputs = self.model(**inputs)
 
@@ -89,105 +158,141 @@ class RetrievalEvaluator(BaseEvaluator):
             self.text_embeds.extend(_text_embeds)
             self.image_embeds.extend(_image_embeds)
 
-        text_embeds = torch.stack(self.text_embeds)
-        image_embeds = torch.stack(self.image_embeds)
-
-        text_to_image_map = torch.LongTensor(
-            self.text_to_image_map
-        ).to(text_embeds.device)
-        image_to_text_map = torch.LongTensor(
-            _pad_and_convert_to_tensor(self.image_to_text_map, max_length=max_captions_per_image)
-        ).to(text_embeds.device)
-
-        return text_embeds, image_embeds, text_to_image_map, image_to_text_map
+        # No need to return the mappings as they are directly stored in qrels
+        return self.text_embeds, self.image_embeds
 
     def evaluate(self, batch_size: Optional[int] = 128):
+        """
+        Evaluates the retrieval performance using pytrec_eval for metrics calculation.
+        Both text-to-image and image-to-text retrieval tasks are evaluated.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Returns:
+            None: Results are saved to a `result.json` file in the output directory.
+        """
         k_values = self.k_values if self.k_values is not None else [1, 5, 10]
 
         print("Encoding all data...")
-        text_embeds, image_embeds, text_to_image_map, image_to_text_map = self._encode_dataset(batch_size=batch_size)
+        text_embeds, image_embeds = self._encode_dataset(batch_size=batch_size)
 
-        num_text = text_embeds.shape[0]
-        num_im = image_embeds.shape[0]
-        captions_per_image = image_to_text_map.shape[1]
+        num_text = len(text_embeds)
+        num_im = len(image_embeds)
 
-        dist_matrix = text_embeds @ image_embeds.T  # dist_matrix[i] gives logits for ith text
-        dist_matrix = dist_matrix.cpu()
+        # Compute similarity matrix between text and image embeddings
+        with torch.no_grad():
+            dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
+        dist_matrix = dist_matrix.cpu().detach()
 
-        # sort in descending order; first is the biggest logit
-        indices = torch.argsort(dist_matrix, dim=1, descending=True)
-        indices = indices.to(text_embeds.device)
+        # Create run dictionaries for pytrec_eval
+        run_text_to_image = {}
+        run_image_to_text = {}
 
-        text_to_image_recall = []
+        # Prepare data for text-to-image retrieval (query: text, docs: images)
+        for i in range(num_text):
+            run_text_to_image[f"text_{i}"] = {f"image_{j}": float(dist_matrix[i, j].item()) for j in range(num_im)}
 
-        for k in k_values:
-            # extract top k indices only
-            top_k = indices[:, :k]
+        # Prepare data for image-to-text retrieval (query: image, docs: texts)
+        dist_matrix = dist_matrix.T  # dist_matrix[i] gives logits for ith image
+        for i in range(num_im):
+            run_image_to_text[f"image_{i}"] = {f"text_{j}": float(dist_matrix[i, j].item()) for j in range(num_text)}
 
-            # correct iff one of the top_k values equals the correct image (as given by text_to_image_map)
-            correct = torch.eq(top_k, text_to_image_map.unsqueeze(-1)).any(dim=1).cpu()
+        # Initialize pytrec_eval evaluator for text-to-image retrieval
+        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_text_to_image, {'recall', 'map'})
 
-            num_correct = correct.sum().item()
-            text_to_image_recall.append(num_correct / num_text)
+        # Calculate metrics for text-to-image retrieval
+        t2i_results = evaluator.evaluate(run_text_to_image)
+        t2i_recalls = {f"Recall@{k}": sum([v[f"recall_{k}"] for v in t2i_results.values()]) / num_text for k in
+                       k_values}
 
-        dist_matrix = dist_matrix.T  # dist_matrix[i] gives logits for the ith image
+        # Initialize pytrec_eval evaluator for image-to-text retrieval
+        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_image_to_text, {'recall', 'map'})
 
-        # sort in descending order; first is the biggest logit
-        indices = torch.argsort(dist_matrix, dim=1, descending=True)
-        indices = indices.to(text_embeds.device)
+        # Calculate metrics for image-to-text retrieval
+        i2t_results = evaluator.evaluate(run_image_to_text)
+        i2t_recalls = {f"Recall@{k}": sum([v[f"recall_{k}"] for v in i2t_results.values()]) / num_im for k in k_values}
 
-        image_to_text_recall = []
-
-        for k in k_values:
-            # extract top k indices only
-            top_k = indices[:, :k]
-
-            correct = torch.zeros((num_im,), dtype=torch.bool).cpu()
-
-            # for each image, check whether one of the 5 relevant captions was retrieved
-            # check if image matches its ith caption (for i=0..4)
-            for i in range(captions_per_image):
-                contains_index = torch.eq(top_k, image_to_text_map[:, i].unsqueeze(-1)).any(dim=1).cpu()
-                correct = torch.logical_or(correct, contains_index)
-
-            num_correct = correct.sum().item()
-            image_to_text_recall.append(num_correct / num_im)  #
-
-        t2i_recalls, i2t_recalls = {}, {}
-
-        for k_val, t2i, i2t in zip(k_values, text_to_image_recall, image_to_text_recall):
-            t2i_recalls[f"Recall@{k_val}"] = round(t2i, 2)
-            i2t_recalls[f"Recall@{k_val}"] = round(i2t, 2)
-
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        if self.output_dir is not None:
-            with open(os.path.join(self.output_dir, 'result.json'), "w") as f:
-                json.dump({"t2i": t2i_recalls, "i2t": i2t_recalls}, f, indent=2)
+        # Save the results
+        self._save_result({"t2i": t2i_recalls, "i2t": i2t_recalls})
 
 
 def text_correct(result):
+    """
+    Checks whether the text is correctly matched to the image by comparing scores in the result dictionary.
+
+    Args:
+        result (dict): A dictionary containing scores for text-image pairings.
+
+    Returns:
+        bool: True if text matches are correct, False otherwise.
+    """
     return result["c0_i0"] > result["c1_i0"] and result["c1_i1"] > result["c0_i1"]
 
 
 def image_correct(result):
+    """
+    Checks whether the image is correctly matched to the text by comparing scores in the result dictionary.
+
+    Args:
+        result (dict): A dictionary containing scores for text-image pairings.
+
+    Returns:
+        bool: True if image matches are correct, False otherwise.
+    """
     return result["c0_i0"] > result["c0_i1"] and result["c1_i1"] > result["c1_i0"]
 
 
 def group_correct(result):
+    """
+    Checks whether both the image and text are correctly matched in the result.
+
+    Args:
+        result (dict): A dictionary containing scores for text-image pairings.
+
+    Returns:
+        bool: True if both text and image matches are correct, False otherwise.
+    """
     return image_correct(result) and text_correct(result)
 
 
 @registry.register_evaluator("WinogroundEvaluator")
 class WinogroundEvaluator(BaseEvaluator):
-    # image_to_text_map[i] gives the corresponding text indices for the ith image
-    # (as there are multiple pieces of text for each image)
+    """
+    An evaluator class for Winoground dataset. This evaluator computes the matching performance of image-text pairs
+    using the model, based on the 'caption_0', 'caption_1', 'image_0', and 'image_1' fields in the dataset.
+
+    It calculates three metrics:
+    - Text score: Correctly matches text with images.
+    - Image score: Correctly matches images with texts.
+    - Group score: Correctly matches both texts and images.
+
+    Attributes:
+        winoground_scores (List[Dict[Any, Any]]): A list to store the scores for each example in the dataset.
+    """
+
     winoground_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
-        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False)
+        """
+        Encodes the dataset by preparing inputs for different image-text combinations and generates scores
+        for each pair.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Raises:
+            TypeError: If the inputs are not correctly formatted for encoding.
+        """
+        dataloader = DataLoader(
+            self.evaluate_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=dummy_collator
+        )
 
         for samples in dataloader:
+            # Prepare inputs for each possible combination of text and image
             input_c0_i0 = self.data_collator(list(map(lambda d: {
                 'text': d['caption_0'],
                 'images': d['image_0'],
@@ -205,16 +310,17 @@ class WinogroundEvaluator(BaseEvaluator):
                 'images': d['image_1'],
             }, samples)))
 
-            # 모든 샘플에 대해 ID를 수집
+            # Collect IDs for each example in the batch
             ids = list(map(lambda d: d['id'], samples))
 
             with torch.no_grad():
+                # Generate output logits for each text-image combination
                 output_c0_i0 = self.model(**input_c0_i0)
                 output_c1_i0 = self.model(**input_c1_i0)
                 output_c0_i1 = self.model(**input_c0_i1)
                 output_c1_i1 = self.model(**input_c1_i1)
 
-            # 각 배치 내의 각 예제에 대해 개별적으로 점수를 추출
+            # Extract scores for each example and store in winoground_scores
             for idx, example_id in enumerate(ids):
                 score_c0_i0 = output_c0_i0.logits_per_image[idx].item()
                 score_c1_i0 = output_c1_i0.logits_per_image[idx].item()
@@ -230,12 +336,22 @@ class WinogroundEvaluator(BaseEvaluator):
                 })
 
     def evaluate(self, batch_size: int = 128):
+        """
+        Evaluates the model performance on the Winoground dataset by computing the text, image, and group scores.
 
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Outputs:
+            Prints the text, image, and group scores. Also saves the results in a 'WINOGROUND.json' file.
+        """
         self._encode_dataset(batch_size=batch_size)
 
         text_correct_count = 0
         image_correct_count = 0
         group_correct_count = 0
+
+        # Compute the number of correct matches for text, image, and group
         for result in self.winoground_scores:
             text_correct_count += 1 if text_correct(result) else 0
             image_correct_count += 1 if image_correct(result) else 0
@@ -243,61 +359,95 @@ class WinogroundEvaluator(BaseEvaluator):
 
         denominator = len(self.winoground_scores)
 
+        # Print scores
         print("text score:", text_correct_count / denominator)
         print("image score:", image_correct_count / denominator)
         print("group score:", group_correct_count / denominator)
 
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        if self.output_dir is not None:
-            with open(os.path.join(self.output_dir, 'WINOGROUND.json'), "w") as f:
-                json.dump({
+        # Save results to output directory
+        self._save_result({
                     "text score": round(text_correct_count / denominator, 3),
                     "image score": round(image_correct_count / denominator, 3),
                     "group score": round(group_correct_count / denominator, 3),
-                }, f, indent=2)
+                })
 
 
 @registry.register_evaluator("SVOEvaluator")
 class SVOEvaluator(BaseEvaluator):
-    # image_to_text_map[i] gives the corresponding text indices for the ith image
-    # (as there are multiple pieces of text for each image)
+    """
+    An evaluator class for evaluating Subject-Verb-Object (SVO) datasets. This evaluator compares positive and negative
+    image-text pairs based on subjects, verbs, and objects to calculate accuracy.
+
+    Attributes:
+        svo_scores (List[Dict[Any, Any]]): A list to store the scores for each SVO example in the dataset.
+    """
+
     svo_scores: List[Dict[Any, Any]] = Field(default_factory=list)
 
     def _encode_dataset(self, batch_size: int = 128):
+        """
+        Encodes the dataset by processing image and text inputs for positive and negative samples and
+        generates scores for each.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Returns:
+            None: Stores the scores in `self.svo_scores`.
+
+        Raises:
+            TypeError: If inputs are not formatted correctly for encoding.
+        """
+
         def _get_id_list(s: List[Dict]) -> List:
-            # 검사할 key 목록
+            """
+            Extracts the key (`subj_neg`, `verb_neg`, or `obj_neg`) that is True in each sample.
+
+            Args:
+                s (List[Dict]): A list of dictionaries, where each dictionary contains the keys `subj_neg`,
+                `verb_neg`, and `obj_neg`.
+
+            Returns:
+                List: A list of keys that have True values in the respective sample.
+            """
             keys_to_check = ['subj_neg', 'verb_neg', 'obj_neg']
             return_list = []
-            # dict_list의 각 dict에 대해 처리
-            for sample in s:
-                # 세 가지 key 중 True 값을 가진 key를 찾습니다.
-                true_key = next((key for key in keys_to_check if sample.get(key)), None)
 
-                # True 값을 가진 key의 이름을 'id'라는 key의 값으로 추가합니다.
+            for sample in s:
+                # Find the key that has a True value in the sample
+                true_key = next((key for key in keys_to_check if sample.get(key)), None)
                 if true_key:
                     return_list.append(true_key)
 
             return return_list
 
-        dataloader = DataLoader(self.evaluate_dataset, batch_size=batch_size, shuffle=False)
+        dataloader = DataLoader(
+            self.evaluate_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=dummy_collator
+        )
 
         for samples in dataloader:
+            # Prepare inputs for positive and negative image-text pairs
             input_pos = self.data_collator(list(map(lambda d: {
                 'text': d['sentences'],
-                'images': d['pos_url'],
+                'images': d['pos_image'],
             }, samples)))
+
             input_neg = self.data_collator(list(map(lambda d: {
                 'text': d['sentences'],
-                'images': d['neg_url'],
+                'images': d['neg_image'],
             }, samples)))
 
             ids = _get_id_list(s=samples)
 
             with torch.no_grad():
+                # Get model outputs for positive and negative samples
                 output_pos = self.model(**input_pos)
                 output_neg = self.model(**input_neg)
 
+            # Store scores for each sample
             for idx, example_id in enumerate(ids):
                 score_pos = output_pos.logits_per_image[idx].item()
                 score_neg = output_neg.logits_per_image[idx].item()
@@ -309,31 +459,58 @@ class SVOEvaluator(BaseEvaluator):
                 })
 
     def evaluate(self, batch_size: int = 128):
+        """
+        Evaluates the model on the SVO dataset by calculating positive and negative image-text matching accuracy
+        for subjects, verbs, and objects.
+
+        Args:
+            batch_size (int, optional): The number of samples per batch (default is 128).
+
+        Returns:
+            None: Saves the evaluation results in the output directory.
+        """
         self._encode_dataset(batch_size=batch_size)
 
-        def accuracy(samples: List[Dict]):
-            # 부정 이미지의 정확도 계산 (neg_scores가 False인 경우)
+        def accuracy(samples: List[Dict]) -> Tuple[float, float, float]:
+            """
+            Calculates the accuracy for positive and negative image-text matches.
+
+            Args:
+                samples (List[Dict]): A list of dictionaries containing the scores for each sample.
+
+            Returns:
+                Tuple[float, float, float]: The overall accuracy, positive accuracy, and negative accuracy.
+            """
+            # Calculate negative image accuracy (where `neg_scores` should be False)
             _neg_acc = np.mean([not sample['neg_scores'] for sample in samples])
 
-            # 긍정 이미지의 정확도 계산 (pos_scores가 True인 경우)
+            # Calculate positive image accuracy (where `pos_scores` should be True)
             _pos_acc = np.mean([sample['pos_scores'] for sample in samples])
 
-            # 매크로 정확도 계산
-            _acc = (neg_acc + pos_acc) / 2.0
+            # Calculate overall accuracy (macro accuracy)
+            _acc = (_neg_acc + _pos_acc) / 2.0
 
             return _acc, _pos_acc, _neg_acc
 
+        # Calculate accuracy for subjects
         subj_neg_acc, subj_neg_pos_acc, subj_neg_neg_acc = accuracy(
             list(filter(lambda sample: sample.get('id') == 'subj_neg', self.svo_scores))
         )
+
+        # Calculate accuracy for verbs
         verb_neg_acc, verb_neg_pos_acc, verb_neg_neg_acc = accuracy(
             list(filter(lambda sample: sample.get('id') == 'verb_neg', self.svo_scores))
         )
+
+        # Calculate accuracy for objects
         obj_neg_acc, obj_neg_pos_acc, obj_neg_neg_acc = accuracy(
             list(filter(lambda sample: sample.get('id') == 'obj_neg', self.svo_scores))
         )
+
+        # Calculate overall accuracy
         acc, pos_acc, neg_acc = accuracy(self.svo_scores)
 
+        # Results dictionary
         results = {
             "ALL": {
                 "Avg Accuracy": acc,
@@ -357,11 +534,8 @@ class SVOEvaluator(BaseEvaluator):
             }
         }
 
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        if self.output_dir is not None:
-            with open(os.path.join(self.output_dir, 'SVO.json'), "w") as f:
-                json.dump(results, f, indent=2)
+        # Save results
+        self._save_result(results)
 
 
 @registry.register_evaluator("AROEvaluator")
