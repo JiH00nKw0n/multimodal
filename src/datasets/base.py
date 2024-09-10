@@ -89,7 +89,7 @@ class SequenceTextDatasetFeaturesWithImage(BaseModel):
     """
     A dataset features class for handling sequences of text and images.
     """
-    images: Sequence = Sequence(Value(dtype='string', id=None))
+    images: Image = Image()
     text: Sequence = Sequence(Value(dtype='string', id=None))
 
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)
@@ -100,7 +100,7 @@ class SequenceTextDatasetFeaturesWithImageURL(BaseModel):
     """
     A dataset features class for handling sequences of text and images.
     """
-    images: Sequence = Sequence(Value(dtype='string', id=None))
+    images: Value = Value(dtype='string', id=None)
     text: Sequence = Sequence(Value(dtype='string', id=None))
 
     model_config = ConfigDict(frozen=True, strict=True, validate_assignment=True)

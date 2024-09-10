@@ -17,7 +17,7 @@ class SVODatasetBuilder(BaseBuilder):
         name (Optional[str]): The name of the dataset (default: 'winoground').
     """
     split: Optional[str] = 'train'
-    name: Optional[str] = 'winoground'
+    name: Optional[str] = 'svo'
 
     def build_dataset(self) -> Dataset:
         """

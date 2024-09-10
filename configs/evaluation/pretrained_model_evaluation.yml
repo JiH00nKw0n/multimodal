@@ -1,5 +1,5 @@
 run:
-  task: 'PretrainedModelEvaluateTask'
+  task: 'MultiDatasetEvaluateTaskWithPretrainedModel'
   seed: 2024
   output_dir: &output_dir '/mnt/working/_result/clip_vit_base'
 
@@ -19,17 +19,22 @@ dataset:
   - COCOCaptionsDatasetBuilder:
       split: 'test'
   - ARODatasetBuilder:
+      split: 'train'
   - CREPEDatasetBuilder:
+      split: 'train'
   - SUGARCREPEDatasetBuilder:
+      split: 'train'
   - SVODatasetBuilder:
+      split: 'train'
   - WinogroundDatasetBuilder:
+      split: 'test'
 
 evaluator:
   - RetrievalEvaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: &max_seq_length 64
+          max_length: &max_length 64
       k_values:
         - 1
         - 5
@@ -39,7 +44,7 @@ evaluator:
       collator:
         collator_cls: 'ImageURLCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       k_values:
         - 1
         - 5
@@ -49,29 +54,29 @@ evaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       output_dir: *output_dir
   - CrepeEvaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       output_dir: *output_dir
   - SugarCrepeEvaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       output_dir: *output_dir
   - SVOEvaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       output_dir: *output_dir
   - WinogroundEvaluator:
       collator:
         collator_cls: 'ImageCollator'
         config:
-          max_seq_length: *max_seq_length
+          max_length: *max_length
       output_dir: *output_dir

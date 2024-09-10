@@ -1,8 +1,8 @@
 import logging
 from typing import Optional, Dict, Type, List
 
-from datasets import Dataset
-from omegaconf import DictConfig
+from datasets import Dataset, DatasetDict
+from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import add_end_docstrings, PreTrainedModel, ProcessorMixin
 
@@ -101,7 +101,8 @@ class MultiDatasetEvaluateTask(BaseEvaluateTask):
         builder_dict = {}
         assert len(dataset_config) > 0, "At least one dataset must be specified."
 
-        for builder_cls_name, config in dataset_config.items():
+        for dataset_line in dataset_config:
+            builder_cls_name, config = next(iter(dataset_line.items()))
             builder = registry.get_builder_class(builder_cls_name)(**config)
             builder_dict[builder_cls_name] = builder
 
@@ -129,14 +130,16 @@ class MultiDatasetEvaluateTask(BaseEvaluateTask):
         model = self.build_model()
         processor = self.build_processor()
 
-        for (evaluator_cls_name, config), (builder_cls_name, builder) in zip(
-                evaluator_config.items(),
+        for evaluator_line, (builder_cls_name, builder) in zip(
+                evaluator_config,
                 dataset_dict.items()
         ):
+
+            evaluator_cls_name, config = next(iter(evaluator_line.items()))
             evaluator_cls = registry.get_evaluator_class(evaluator_cls_name)
             assert evaluator_cls is not None, f"Evaluator {evaluator_cls_name} not properly registered."
 
-            collator_config = config.pop('collator')
+            collator_config = OmegaConf.create(config.pop('collator'))
             collator_cls = registry.get_collator_class(collator_config.collator_cls)
             assert collator_cls is not None, f"Collator {collator_cls} not properly registered."
 
@@ -145,16 +148,16 @@ class MultiDatasetEvaluateTask(BaseEvaluateTask):
                 **collator_config.config,
             )
 
-            evaluate_dataset = builder.build_datasets()
+            evaluate_dataset = builder.build_dataset()
 
-            if not isinstance(evaluate_dataset, Dataset):
+            if not (isinstance(evaluate_dataset, Dataset) or isinstance(evaluate_dataset, DatasetDict)):
                 raise TypeError(f"Expected `evaluate_dataset` to be of type `datasets.Dataset`, "
-                                f"but got {type(evaluate_dataset)} instead.")
+                                f"or `datasets.DatasetDict` but got {type(evaluate_dataset)} instead.")
 
             container.add(
                 evaluator=evaluator_cls(
                     model=model,
-                    evaluate_dataset=builder.build_datasets(),
+                    evaluate_dataset=evaluate_dataset,
                     dataset_name=builder.name,
                     data_collator=collator,
                     **config
@@ -192,15 +195,10 @@ class MultiDatasetEvaluateTaskWithPretrainedModel(MultiDatasetEvaluateTask, Task
             if model_config is not None else self.config.model_config.copy()
 
         model_cls = registry.get_model_class(model_config.model_cls)
-        model_cfg_cls = registry.get_model_config_class(model_config.config_cls)
 
         assert model_cls is not None, f"Model {model_cls} not properly registered."
-        assert model_cfg_cls is not None, f"Model config {model_cfg_cls} not properly registered."
 
-        config_dict = load_json(model_config.config_path)
-        model_cfg = model_cfg_cls(**config_dict)
-
-        model = model_cls.from_pretrained(**dict(model_config.config, **{"config": model_cfg}))
+        model = model_cls.from_pretrained(**model_config.config)
 
         return model.cuda().eval()
 

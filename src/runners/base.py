@@ -1,17 +1,18 @@
 import json
 import os
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, Optional, Type, Union, TypeVar
 
 from datasets import Dataset
 from pydantic import BaseModel, ConfigDict
 from transformers import PreTrainedModel, Trainer
 from transformers.utils import logging
 
-from src.collators import BaseCollator
+# from src.collators import BaseCollator
 
 logger = logging.get_logger(__name__)
 
-CollatorType = Type[BaseCollator]
+# CollatorType = Type[BaseCollator]
+CollatorType = TypeVar("CollatorType", bound="BaseCollator")
 
 __all__ = ["BaseTrainer", "BaseEvaluator"]
 

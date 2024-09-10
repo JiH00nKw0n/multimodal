@@ -32,6 +32,6 @@ class SUGARCREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
         dataset = dataset.map(
             lambda x: {'text': [x['text']]}
         )
-        dataset = dataset.cast(self.features)
+        # dataset = dataset.cast(self.features)
 
         return dataset

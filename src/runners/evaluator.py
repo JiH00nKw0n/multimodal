@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Annotated, Dict, DefaultDict, List, Optional, Tuple, Type
 
 import numpy as np
 import pandas as pd
@@ -81,15 +81,15 @@ class RetrievalEvaluator(BaseEvaluator):
 
     Attributes:
         k_values (Optional[List[int]]): A list of `k` values used to compute recall (default is `[1, 5, 10]`).
-        qrels_text_to_image (defaultdict): Mapping from text to relevant images for `pytrec_eval`.
-        qrels_image_to_text (defaultdict): Mapping from images to relevant texts for `pytrec_eval`.
+        qrels_text_to_image (DefaultDict[str, dict]): Mapping from text to relevant images for `pytrec_eval`.
+        qrels_image_to_text (DefaultDict[str, dict]): Mapping from images to relevant texts for `pytrec_eval`.
         image_embeds (List[torch.Tensor]): A list to store image embeddings during evaluation.
         text_embeds (List[torch.Tensor]): A list to store text embeddings during evaluation.
     """
 
     k_values: Optional[List[int]] = None
-    qrels_text_to_image: defaultdict = Field(default_factory=lambda: defaultdict(dict))
-    qrels_image_to_text: defaultdict = Field(default_factory=lambda: defaultdict(dict))
+    qrels_text_to_image: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(default_factory=lambda: defaultdict(dict))
+    qrels_image_to_text: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(default_factory=lambda: defaultdict(dict))
     image_embeds: List[torch.Tensor] = Field(default_factory=list)
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
@@ -550,8 +550,8 @@ class AROEvaluator(BaseEvaluator):
     Args:
         evaluate_dataset (Optional[DatasetDict]): The dataset to evaluate.
         aro_scores (Optional[Dict[str, torch.Tensor]]): A dictionary to store the computed ARO scores.
-        all_attributes (Optional[List[str]]): A list of all attributes from the VG_Attributes dataset.
-        all_relations (Optional[List[str]]): A list of all relations from the VG_Attributes dataset.
+        all_attributes (Optional[List[str]]): A list of all attributes from the VG_Attribute dataset.
+        all_relations (Optional[List[str]]): A list of all relations from the VG_Attribute dataset.
     """
     evaluate_dataset: Optional[DatasetDict] = None
     aro_scores: Optional[Dict[str, torch.Tensor]] = Field(default_factory=dict)
@@ -567,10 +567,10 @@ class AROEvaluator(BaseEvaluator):
             __context (Any): The context passed from the model initialization process.
         """
         self.all_attributes = [
-            f"{item['attributes'][0]}_{item['attributes'][1]}" for item in self.evaluate_dataset['VG_Attributes']
+            f"{item[0]}_{item[1]}" for item in self.evaluate_dataset['VG_Attribute']['attributes']
         ]
         self.all_relations = [
-            item['relation_name'] for item in self.evaluate_dataset['VG_Attributes']
+            item for item in self.evaluate_dataset['VG_Relation']['Realation_name']
         ]
         super().model_post_init(__context)
 

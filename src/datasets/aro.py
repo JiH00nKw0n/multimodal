@@ -63,8 +63,8 @@ class ARODatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
         # Return the combined DatasetDict
         return DatasetDict(
             {
-                'VG_Attribute': vg_attribute_dataset.cast(self.features),
-                'VG_Relation': vg_relation_dataset.cast(self.features),
+                'VG_Attribute': vg_attribute_dataset,
+                'VG_Relation': vg_relation_dataset,
                 'Flickr_Order': flickr_order_dataset,
                 'COCO_Order': coco_order_dataset,
             }

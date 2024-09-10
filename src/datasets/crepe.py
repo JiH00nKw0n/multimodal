@@ -18,6 +18,6 @@ class CREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
         dataset = dataset.map(
             lambda x: {'text': [x['text']]}
         )
-        dataset.cast(self.features)
+        # dataset.cast(self.features)
 
         return dataset

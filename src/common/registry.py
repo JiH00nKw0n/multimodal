@@ -1,17 +1,17 @@
 from typing import Type, TypeVar
-from src.collators import BaseCollator
-from src.runners import BaseTrainer, BaseEvaluator
-from src.tasks import BaseTask
+# from src.collators.base import BaseCollator
+# from src.runners import BaseTrainer, BaseEvaluator
+# from src.tasks import BaseTask
 from transformers import ProcessorMixin, PretrainedConfig, PreTrainedModel, Trainer
 
 ProcessorType = Type[ProcessorMixin]
-CollatorType = Type[BaseCollator]
-TaskType = Type[BaseTask]
+CollatorType = TypeVar("CollatorType", bound="BaseCollator")
+TaskType = TypeVar("TaskType", bound="BaseTask")
 ModelType = Type[PreTrainedModel]
 ModelConfigType = Type[PretrainedConfig]
-TrainerType = Type[BaseTrainer]
+TrainerType = TypeVar("TrainerType", bound="BaseTrainer")
 BuilderType = TypeVar("BuilderType", bound="BaseBuilder")
-EvaluatorType = Type[BaseEvaluator]
+EvaluatorType = TypeVar("EvaluatorType", bound="BaseEvaluator")
 
 
 class Registry:
@@ -79,7 +79,7 @@ class Registry:
         """
 
         def wrap(collator_cls) -> CollatorType:
-
+            from src.collators import BaseCollator
             assert issubclass(
                 collator_cls, BaseCollator
             ), "All collators must inherit BaseCollator"
