@@ -600,7 +600,7 @@ class AROEvaluator(BaseEvaluator):
 
                 for sample in samples:
                     inputs = self.data_collator(process_samples(list({
-                        'text': [*sample['true_caption'], *sample['false_caption']],
+                        'text': [*sample['text'], *sample['hard_texts']],
                         'images': sample['images'],
                     })))
                     outputs = self.model(**inputs)
@@ -731,10 +731,10 @@ class AROEvaluator(BaseEvaluator):
             **self.evaluate_order()
         }
 
-        os.makedirs(os.path.join(self.output_dir, 'ARO'), exist_ok=True)
+        os.makedirs(os.path.join(self.output_dir, self.dataset_name), exist_ok=True)
 
         for dataset_name, result_records in results.items():
-            output_file = os.path.join(self.output_dir, 'ARO', f'{dataset_name}.csv')
+            output_file = os.path.join(self.output_dir, self.dataset_name, f'{dataset_name}.csv')
             df = pd.DataFrame(result_records)
             df.to_csv(output_file)
 

@@ -1,16 +1,23 @@
-import os
-from typing import Optional, Union
+from typing import Optional
 
-from src.datasets.base import BaseDatasetBuilder
-from src.common import registry
 from datasets import load_dataset, Dataset
+
+from src.common import registry
+from src.datasets.builder import HardSequenceTextDatasetWithImageBuilder
 
 
 @registry.register_builder('CREPEDatasetBuilder')
-class CREPEDatasetBuilder(BaseDatasetBuilder):
-    split: Optional[str] = 'test'
+class CREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
+    split: Optional[str] = 'train'
     name: Optional[str] = 'crepe'
-    download_dir: Optional[Union[str, os.PathLike]] = None
 
     def build_dataset(self) -> Dataset:
-        raise NotImplementedError
+        dataset = load_dataset(
+            "yjkimstats/CREPE_productivity_fmt", trust_remote_code=True, split=self.split
+        )
+        dataset = dataset.map(
+            lambda x: {'text': [x['text']]}
+        )
+        dataset.cast(self.features)
+
+        return dataset
