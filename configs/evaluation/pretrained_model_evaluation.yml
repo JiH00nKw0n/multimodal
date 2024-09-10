@@ -1,6 +1,7 @@
 run:
   task: 'PretrainedModelEvaluateTask'
   seed: 2024
+  output_dir: &output_dir '/mnt/working/_result/clip_vit_base'
 
 model:
   model_cls: 'CLIPModel'
@@ -33,7 +34,7 @@ evaluator:
         - 1
         - 5
         - 10
-      output_dir: &output_dir '/mnt/working/_result/clip'
+      output_dir: *output_dir
   - RetrievalEvaluator:
       collator:
         collator_cls: 'ImageURLCollator'
