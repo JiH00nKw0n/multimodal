@@ -149,7 +149,7 @@ class RetrievalEvaluator(BaseEvaluator):
             # Process the samples
             processed_samples = process_samples(samples)
             inputs = self.data_collator(processed_samples)
-            inputs.cuda()
+            inputs.to('cuda')
 
             outputs = self.model(**inputs)
 
@@ -605,7 +605,7 @@ class AROEvaluator(BaseEvaluator):
                             'text': [*sample['text'], *sample['hard_texts']],
                             'images': sample['images'],
                         })))
-                        inputs.cuda()
+                        inputs.to('cuda')
 
                         outputs = self.model(**inputs)
 
@@ -620,7 +620,7 @@ class AROEvaluator(BaseEvaluator):
                                 'text': [*[_text], *_hard_texts],
                                 'images': sample['images'],
                             })))
-                            inputs.cuda()
+                            inputs.to('cuda')
 
                             outputs = self.model(**inputs)
 
@@ -791,7 +791,7 @@ class CrepeEvaluator(BaseEvaluator):
                     'text': [*sample['text'], *sample['hard_texts']],
                     'images': sample['images'],
                 })))
-                inputs.cuda()
+                inputs.to('cuda')
 
                 outputs = self.model(**inputs)
 
@@ -873,7 +873,7 @@ class SugarCrepeEvaluator(BaseEvaluator):
                         'text': [*sample['text'], *sample['hard_texts']],
                         'images': sample['images'],
                     })))
-                    inputs.cuda()
+                    inputs.to('cuda')
 
                     outputs = self.model(**inputs)
 
