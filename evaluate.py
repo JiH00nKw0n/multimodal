@@ -3,8 +3,8 @@ import random
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import wandb
 import logging
+import os
 
 from src.utils import get_rank, init_distributed_mode, now, load_yml
 from src.common import EvaluateConfig, setup_logger, CustomWandbCallback
@@ -43,7 +43,7 @@ def main() -> None:
     args = parse_args()
 
     # 파일 핸들러 생성
-    file_handler = logging.FileHandler(f'/mnt/working/.log/fusemix_{job_id}.log/')
+    file_handler = logging.FileHandler(f'/{os.getenv("LOG_DIR")}/clip_{job_id}.log/')
     file_handler.setLevel(logging.DEBUG)
 
     # 로그 메시지 포맷 설정

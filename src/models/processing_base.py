@@ -21,7 +21,12 @@ from transformers import AutoImageProcessor, AutoTokenizer
 __all__ = ["BaseProcessor"]
 
 IMG_PROCESSOR_CLASS = ("EfficientNetImageProcessor", "BitImageProcessor")
-TOKENIZER_CLASS = ("XLMRobertaTokenizer", "XLMRobertaTokenizerFast", "DistilBertTokenizerFast")
+TOKENIZER_CLASS = (
+    "XLMRobertaTokenizer",
+    "XLMRobertaTokenizerFast",
+    "DistilBertTokenizerFast",
+    "BertTokenizerFast"
+)
 
 
 class BaseProcessorKwargs(ProcessingKwargs, total=False):

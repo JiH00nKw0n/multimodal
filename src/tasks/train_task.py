@@ -264,7 +264,7 @@ class DatasetTrainTaskWithPretrainedModel(DatasetSingleTrainTask, SingleTrainTas
             self,
             trainer_config: Optional[Dict] = None
     ):
-        DatasetSingleTrainTask.build_trainer(
+        return DatasetSingleTrainTask.build_trainer(
             self,
             trainer_config=trainer_config,
         )
@@ -308,7 +308,7 @@ class IterableDatasetTrainTaskWithPretrainedModel(IterableDatasetSingleTrainTask
             self,
             trainer_config: Optional[Dict] = None
     ):
-        IterableDatasetSingleTrainTask.build_trainer(
+        return IterableDatasetSingleTrainTask.build_trainer(
             self,
             trainer_config=trainer_config,
         )
@@ -352,7 +352,7 @@ class DatasetTrainTaskWithCustomModel(DatasetSingleTrainTask, SingleTrainTaskWit
             self,
             trainer_config: Optional[Dict] = None
     ):
-        DatasetSingleTrainTask.build_trainer(
+        return DatasetSingleTrainTask.build_trainer(
             self,
             trainer_config=trainer_config,
         )
@@ -396,7 +396,7 @@ class IterableDatasetTrainTaskWithCustomModel(IterableDatasetSingleTrainTask, Si
             self,
             trainer_config: Optional[Dict] = None
     ):
-        IterableDatasetSingleTrainTask.build_trainer(
+        return IterableDatasetSingleTrainTask.build_trainer(
             self,
             trainer_config=trainer_config,
         )
