@@ -59,7 +59,7 @@ class EvaluatorContainer(BaseModel):
             batch_size (int, optional): The batch size for evaluation. Defaults to 128.
         """
         for evaluator in self.container:
-            if issubclass(evaluator, BaseEvaluator):
+            if issubclass(type(evaluator), BaseEvaluator):
                 evaluator.evaluate(batch_size=batch_size)
 
     def add(self, evaluator: EvaluatorType):
