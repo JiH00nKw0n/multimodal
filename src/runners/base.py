@@ -42,6 +42,7 @@ class BaseEvaluator(BaseModel):
     data_collator: Optional[CollatorType] = None
     dataset_name: Optional[str] = None
     evaluate_dataset: Optional[Dataset] = None
+    overwrite_results: Optional[bool] = False
     output_dir: Optional[Union[str, os.PathLike]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

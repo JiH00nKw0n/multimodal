@@ -176,7 +176,7 @@ class RetrievalEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
@@ -359,7 +359,7 @@ class WinogroundEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
@@ -491,7 +491,7 @@ class SVOEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
@@ -769,7 +769,7 @@ class AROEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, self.dataset_name)
 
-        if os.path.isfile(file_path):
+        if os.path.exists(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
@@ -845,7 +845,7 @@ class CrepeEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
@@ -936,7 +936,7 @@ class SugarCrepeEvaluator(BaseEvaluator):
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
                 f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
             )
