@@ -194,19 +194,19 @@ class RetrievalEvaluator(BaseEvaluator):
 
         # Compute similarity matrix between text and image embeddings
         dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
-        dist_matrix = dist_matrix.cpu().detach()
+        dist_matrix = dist_matrix.detach()
 
         # Create run dictionaries for pytrec_eval
         run_text_to_image = {}
         run_image_to_text = {}
 
         # Prepare data for text-to-image retrieval (query: text, docs: images)
-        for i in range(num_text):
+        for i in tqdm(range(num_text), desc='Prepare relation data for text-to-image retrieval'):
             run_text_to_image[f"text_{i}"] = {f"image_{j}": float(dist_matrix[i, j].item()) for j in range(num_im)}
 
         # Prepare data for image-to-text retrieval (query: image, docs: texts)
         dist_matrix = dist_matrix.T  # dist_matrix[i] gives logits for ith image
-        for i in range(num_im):
+        for i in tqdm(range(num_im), desc='Prepare relation data for image-to-text retrieval'):
             run_image_to_text[f"image_{i}"] = {f"text_{j}": float(dist_matrix[i, j].item()) for j in range(num_text)}
 
         # Initialize pytrec_eval evaluator for text-to-image retrieval
