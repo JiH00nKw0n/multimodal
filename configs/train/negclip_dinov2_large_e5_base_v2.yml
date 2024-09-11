@@ -1,0 +1,57 @@
+run:
+  task: 'DatasetTrainTaskWithCustomModel'
+  runner: 'NegCLIPRandomSamplerTrainer'
+  seed: 2024
+
+collator: 
+  collator_cls: 'NegCLIPWithImageURLCollator'
+  config:
+    max_length: 64
+
+model:
+  model_cls: 'BaseModel'
+  config_cls: 'BaseConfig'
+  config:
+    text_pretrained_model_name_or_path: &text_pretrained_model_name_or_path 'intfloat/e5-base-v2'
+    vision_pretrained_model_name_or_path: &vision_pretrained_model_name_or_path 'facebook/dinov2-large'
+    pool_type: 'avg'
+  lora:
+
+processor:
+  processor_cls: "BaseProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'intfloat/e5-base-v2'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-large'
+
+dataset:
+  COCOCaptionsDatasetBuilderWithMinedNegCLIP:
+    split: 'train'
+
+trainer:
+  output_dir: '/mnt/elice/multimodal/_output/dinov2_large_e5_base_v2'
+  learning_rate: &learning_rate 1.0e-5
+  lr_scheduler_type: 'cosine'
+  warmup_steps: &warmup_steps 200
+  weight_decay: &weight_decay 1.0e-1
+  max_steps : &max_steps 2000
+  save_steps: 200
+  logging_steps : 1
+  eval_strategy: 'no' # 'steps', 'epochs', 'no'
+
+  num_train_epochs: 1
+  per_device_train_batch_size : &per_device_batch_size 256
+  gradient_accumulation_steps: &gradient_accumulation 1
+  # For memory efficiency.
+  gradient_checkpointing : True
+  # NOTE : need to use this option to cope with DDP
+  gradient_checkpointing_kwargs:
+    use_reentrant: False
+  ddp_find_unused_parameters: True
+
+  fp16: &fp16 True # use torch.float16
+  fp16_opt_level : '01'
+  bf16: &bf16 False # Use torch.bfloat16
+
+  group_by_length : False # Whether to order the sample by token length.
+  use_cpu : False
+  remove_unused_columns : False
