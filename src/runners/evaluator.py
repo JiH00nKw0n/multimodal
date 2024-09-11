@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+import logging
 from typing import Any, Annotated, Dict, DefaultDict, List, Optional, Tuple, Type
 
 import numpy as np
@@ -13,6 +14,8 @@ from torch.utils.data import DataLoader
 from src.collators import BaseCollator
 from src.common.registry import registry
 from src.runners.base import BaseEvaluator
+
+logger = logging.getLogger(__name__)
 
 CollatorType = Type[BaseCollator]
 
@@ -171,6 +174,13 @@ class RetrievalEvaluator(BaseEvaluator):
         Returns:
             None: Results are saved to a `result.json` file in the output directory.
         """
+        file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
         k_values = self.k_values if self.k_values is not None else [1, 5, 10]
 
         print("Encoding all data...")
@@ -200,7 +210,7 @@ class RetrievalEvaluator(BaseEvaluator):
             run_image_to_text[f"image_{i}"] = {f"text_{j}": float(dist_matrix[i, j].item()) for j in range(num_text)}
 
         # Initialize pytrec_eval evaluator for text-to-image retrieval
-        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_text_to_image, {'recall', 'map'})
+        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_text_to_image, {f'recall_{k}' for k in k_values})
 
         # Calculate metrics for text-to-image retrieval
         t2i_results = evaluator.evaluate(run_text_to_image)
@@ -208,7 +218,7 @@ class RetrievalEvaluator(BaseEvaluator):
                        k_values}
 
         # Initialize pytrec_eval evaluator for image-to-text retrieval
-        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_image_to_text, {'recall', 'map'})
+        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_image_to_text, {f'recall_{k}' for k in k_values})
 
         # Calculate metrics for image-to-text retrieval
         i2t_results = evaluator.evaluate(run_image_to_text)
@@ -347,6 +357,13 @@ class WinogroundEvaluator(BaseEvaluator):
         Outputs:
             Prints the text, image, and group scores. Also saves the results in a 'WINOGROUND.json' file.
         """
+        file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
         self._encode_dataset(batch_size=batch_size)
 
         text_correct_count = 0
@@ -472,6 +489,14 @@ class SVOEvaluator(BaseEvaluator):
         Returns:
             None: Saves the evaluation results in the output directory.
         """
+        file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
+
         self._encode_dataset(batch_size=batch_size)
 
         def accuracy(_samples: List[Dict]) -> Tuple[float, float, float]:
@@ -742,6 +767,14 @@ class AROEvaluator(BaseEvaluator):
         Returns:
             None
         """
+        file_path = os.path.join(self.output_dir, self.dataset_name)
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
+
         self._encode_dataset(batch_size=batch_size)
 
         results = {
@@ -810,6 +843,14 @@ class CrepeEvaluator(BaseEvaluator):
         Returns:
             None. The results are saved using the `_save_result` method.
         """
+        file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
+
         self._encode_dataset(batch_size=batch_size)
         preds = np.array(self.crepe_scores)
 
@@ -893,6 +934,14 @@ class SugarCrepeEvaluator(BaseEvaluator):
         Returns:
             None. The results are saved using the `_save_result` method.
         """
+        file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
+
+        if os.path.isfile(file_path):
+            logger.info(
+                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+            )
+            return None
+
         self._encode_dataset(batch_size=batch_size)
         self._save_result(self.sugar_crepe_scores)
 

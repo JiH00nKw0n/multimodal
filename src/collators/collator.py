@@ -144,7 +144,7 @@ class ImageCollator(BaseCollator):
 @registry.register_collator('ImageURLCollator')
 class ImageURLCollator(BaseCollator):
     """
-    A collator class for processing dictionaries containing image URLs and text. The 'image_url' key in the input
+    A collator class for processing dictionaries containing image URLs and text. The 'images' key in the input
     dictionaries must hold image URLs, which are fetched asynchronously and converted into `PIL.Image` objects
     in RGB format. The 'text' key must hold strings. The collator then combines the processed data with padding
     and other configurations before passing it to the processor.
@@ -153,28 +153,28 @@ class ImageURLCollator(BaseCollator):
         TypeError:
             - If the 'text' key contains values that are not `str` instances.
         ValueError:
-            - If the 'image_url' key contains values that are not valid URLs.
-            - If the input dictionaries contain keys other than 'image_url' and 'text'.
+            - If the 'images' key contains values that are not valid URLs.
+            - If the input dictionaries contain keys other than 'images' and 'text'.
     """
 
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
         """
-        Processes a batch of input dictionaries containing image URLs and text. The 'image_url' key in each
+        Processes a batch of input dictionaries containing image URLs and text. The 'images' key in each
         dictionary is expected to hold a valid image URL. The images are fetched asynchronously and converted
         into `PIL.Image` objects in RGB format. The 'text' key must hold strings. The processed images and
         text are then passed to the processor for further encoding.
 
         Args:
             inputs (List[Dict[str, Any]]):
-                A list of dictionaries where each dictionary contains an 'image_url' key that holds
+                A list of dictionaries where each dictionary contains an 'images' key that holds
                 a URL to an image and a 'text' key that holds a string.
 
         Raises:
             TypeError:
                 - If any value in the 'text' key is not a valid `str`.
             ValueError:
-                - If any value in the 'image_url' key is not a valid URL.
-                - If any dictionary contains keys other than 'image_url' and 'text'.
+                - If any value in the 'images' key is not a valid URL.
+                - If any dictionary contains keys other than 'images' and 'text'.
 
         Returns:
             BatchEncoding:
@@ -182,28 +182,28 @@ class ImageURLCollator(BaseCollator):
                 for model consumption.
         """
 
-        # Check that all dictionaries contain only 'image_url' and 'text' as keys
-        allowed_keys = {'image_url', 'text'}
+        # Check that all dictionaries contain only 'images' and 'text' as keys
+        allowed_keys = {'images', 'text'}
         for input_dict in inputs:
             if set(input_dict.keys()) != allowed_keys:
-                raise ValueError(f"Input dictionaries must only contain the keys 'image_url' and 'text'. Found: {input_dict.keys()}")
+                raise ValueError(f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
 
-        # Validate 'image_url' values and 'text' values
+        # Validate 'images' values and 'text' values
         for input_dict in inputs:
-            if 'image_url' in input_dict:
-                if input_dict['image_url'] is None:
+            if 'images' in input_dict:
+                if input_dict['images'] is None:
                     logger.warning_once(
-                        "The 'image_url' key is None, which typically occurs when there is no corresponding image "
+                        "The 'images' key is None, which typically occurs when there is no corresponding image "
                         "for the text (e.g., a negative text) or when multiple texts correspond to a single image. "
                         "Please verify this scenario."
                     )
-                elif not is_url(input_dict['image_url']):
-                    raise ValueError(f"Expected a valid URL for key 'image_url', but got: {input_dict['image_url']}")
+                elif not is_url(input_dict['images']):
+                    raise ValueError(f"Expected a valid URL for key 'images', but got: {input_dict['images']}")
             if 'text' in input_dict and not isinstance(input_dict['text'], str):
                 raise TypeError(f"Expected a string for key 'text', but got: {type(input_dict['text'])}")
 
         # Extract all non-None image URLs from inputs
-        all_image_urls = [d['image_url'] for d in inputs if d['image_url'] is not None]
+        all_image_urls = [d['images'] for d in inputs if d['images'] is not None]
 
         # Fetch images using the process_batch_async function if there are URLs
         images_list = asyncio.run(process_batch_async(all_image_urls)) if all_image_urls else []
@@ -213,7 +213,7 @@ class ImageURLCollator(BaseCollator):
 
         # Process all other keys in inputs and store them in the processed_dict
         for key in inputs[0].keys():
-            if key != 'image_url':  # Skip the 'image_url' key as it's already processed
+            if key != 'images':  # Skip the 'images' key as it's already processed
                 processed_dict[key] = [d[key] for d in inputs]
 
         # Create kwargs for processor, including padding, truncation, etc.
@@ -307,12 +307,12 @@ class NegCLIPWithImageURLCollator(ImageURLCollator):
             hard_text_list.append(selected_hard_text)
 
             # No corresponding image for neg_texts and hard_neg_texts, so use None
-            neg_texts.append({'image_url': None, 'text': selected_neg_text})
-            hard_neg_texts.append({'image_url': None, 'text': selected_hard_neg_text})
+            neg_texts.append({'images': None, 'text': selected_neg_text})
+            hard_neg_texts.append({'images': None, 'text': selected_hard_neg_text})
 
         # Combine image URLs with their corresponding texts
-        all_inputs.extend([{'image_url': url, 'text': text} for url, text in zip(all_images_urls, text_list)])
-        all_inputs.extend([{'image_url': url, 'text': text} for url, text in zip(all_hard_images_urls, hard_text_list)])
+        all_inputs.extend([{'images': url, 'text': text} for url, text in zip(all_images_urls, text_list)])
+        all_inputs.extend([{'images': url, 'text': text} for url, text in zip(all_hard_images_urls, hard_text_list)])
 
         # Add neg_texts and hard_neg_texts, which do not have associated images (image_url is None)
         all_inputs.extend(neg_texts)
