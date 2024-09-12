@@ -90,8 +90,10 @@ class RetrievalEvaluator(BaseEvaluator):
     """
 
     k_values: Optional[List[int]] = None
-    qrels_text_to_image: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(default_factory=lambda: defaultdict(dict))
-    qrels_image_to_text: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(default_factory=lambda: defaultdict(dict))
+    qrels_text_to_image: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(
+        default_factory=lambda: defaultdict(dict))
+    qrels_image_to_text: DefaultDict[str, Annotated[Dict, Field(default_factory=dict)]] = Field(
+        default_factory=lambda: defaultdict(dict))
     image_embeds: List[torch.Tensor] = Field(default_factory=list)
     text_embeds: List[torch.Tensor] = Field(default_factory=list)
 
@@ -146,7 +148,7 @@ class RetrievalEvaluator(BaseEvaluator):
 
             processed_samples = process_samples(samples)
             inputs = self.data_collator(processed_samples)
-            inputs.to('cuda')
+            inputs.to(self.model.device)
 
             outputs = self.model(**inputs)
 
@@ -196,61 +198,46 @@ class RetrievalEvaluator(BaseEvaluator):
         text_to_image_recalls = {f"Recall@{k}": 0.0 for k in k_values}
         image_to_text_recalls = {f"Recall@{k}": 0.0 for k in k_values}
 
-        # Text-to-image recall calculation using topk
-        print("Text-to-image recall...")
-        topk_text_to_image_scores, topk_text_to_image_indices = torch.topk(
-            dist_matrix, max_k, dim=1, largest=True, sorted=True
+        # Internal function to calculate recall for both directions
+        def _calculate_recall(topk_indices, qrels, recalls, num_samples, is_text_to_image, desc):
+            """
+            General function to calculate recall for both text-to-image and image-to-text.
+            """
+            for sample_idx in tqdm(range(num_samples), desc=desc):
+                # Determine the sample name and target name format outside the loop
+                sample_name_prefix = "text_" if is_text_to_image else "image_"
+                target_name_prefix = "image_" if is_text_to_image else "text_"
+
+                sample_name = f"{sample_name_prefix}{sample_idx}"
+
+                for rank, target_idx in enumerate(topk_indices[sample_idx, :max_k], 1):  # rank starts from 1
+                    target_name = f"{target_name_prefix}{target_idx.item()}"
+
+                    # If correct answer is found
+                    if qrels[sample_name].get(target_name, 0) == 1:
+                        # Update all Recall@k where k >= rank
+                        for k in k_values:
+                            if rank <= k:
+                                recalls[f"Recall@{k}"] += 1
+                        break  # Exit loop early since we found the first correct answer
+
+            # Normalize recall values
+            for k in k_values:
+                recalls[f"Recall@{k}"] /= num_samples
+
+        # Calculate recall for both directions
+        topk_text_to_image_indices = torch.topk(dist_matrix, max_k, dim=1, largest=True, sorted=True)[1]
+        _calculate_recall(
+            topk_text_to_image_indices, self.qrels_text_to_image, text_to_image_recalls, num_text, True,
+            'Prepare data for text-to-image retrieval using the top-k results'
         )
 
-        # Loop once and calculate recall for all k_values
-        for text_idx in tqdm(
-                range(num_text), desc='Prepare data for text-to-image retrieval using the top-k results'
-        ):
-            correct_for_k = {k: False for k in k_values}
-            for rank, img_idx in enumerate(topk_text_to_image_indices[text_idx, :max_k]):
-                text_sample_name = f"text_{text_idx}"
-                image_sample_name = f"image_{img_idx.item()}"
-                if self.qrels_text_to_image[text_sample_name].get(image_sample_name, 0) == 1:
-                    for k in k_values:
-                        if rank < k:
-                            correct_for_k[k] = True
-
-            # Update recall for each k
-            for k in k_values:
-                if correct_for_k[k]:
-                    text_to_image_recalls[f"Recall@{k}"] += 1
-
-        # Normalize recall values
-        for k in k_values:
-            text_to_image_recalls[f"Recall@{k}"] /= num_text
-
-        # Image-to-text recall calculation using topk
-        print("Image-to-text recall...")
         dist_matrix = dist_matrix.T  # Transpose to calculate image-to-text recall
-        topk_image_to_text_scores, topk_image_to_text_indices = torch.topk(dist_matrix, max_k, dim=1, largest=True,
-                                                                           sorted=True)
-
-        # Loop once and calculate recall for all k_values
-        for im_idx in tqdm(
-                range(num_im), desc='Prepare data for image-to-text retrieval using the top-k results'
-        ):
-            correct_for_k = {k: False for k in k_values}
-            for rank, text_idx in enumerate(topk_image_to_text_indices[im_idx, :max_k]):
-                image_sample_name = f"image_{im_idx}"
-                text_sample_name = f"text_{text_idx.item()}"
-                if self.qrels_image_to_text[image_sample_name].get(text_sample_name, 0) == 1:
-                    for k in k_values:
-                        if rank < k:
-                            correct_for_k[k] = True
-
-            # Update recall for each k
-            for k in k_values:
-                if correct_for_k[k]:
-                    image_to_text_recalls[f"Recall@{k}"] += 1
-
-        # Normalize recall values
-        for k in k_values:
-            image_to_text_recalls[f"Recall@{k}"] /= num_im
+        topk_image_to_text_indices = torch.topk(dist_matrix, max_k, dim=1, largest=True, sorted=True)[1]
+        _calculate_recall(
+            topk_image_to_text_indices, self.qrels_image_to_text, image_to_text_recalls, num_im, False,
+            'Prepare data for image-to-text retrieval using the top-k results'
+        )
 
         # Print the results
         print("Text-to-image Recall@K")
@@ -654,7 +641,7 @@ class AROEvaluator(BaseEvaluator):
             ))
             dataloader.set_description(f"Computing ARO {name} scores")
 
-            scores = []
+            all_scores = None  # Initialize to None for concatenating later
 
             for samples in dataloader:
 
@@ -667,7 +654,7 @@ class AROEvaluator(BaseEvaluator):
                             'text': [*sample['text'], *sample['hard_texts']],
                             'images': sample['images'],
                         }]))
-                        inputs.to('cuda')
+                        inputs.to(self.model.device)
 
                         outputs = self.model(**inputs)
 
@@ -682,7 +669,7 @@ class AROEvaluator(BaseEvaluator):
                                 'text': [*[_text], *_hard_texts],
                                 'images': sample['images'],
                             })))
-                            inputs.to('cuda')
+                            inputs.to(self.model.device)
 
                             outputs = self.model(**inputs)
 
@@ -692,14 +679,17 @@ class AROEvaluator(BaseEvaluator):
                             batch_text_embeds.append(_text_embeds.unsqueeze(1))
                             batch_image_embeds.append(_image_embeds.unsqueeze(1))
 
+                # Concatenate the batch embeddings along the correct dimension
                 batch_text_embeds = torch.cat(batch_text_embeds, dim=1)
                 batch_image_embeds = torch.cat(batch_image_embeds, dim=1)
 
+                # Perform matrix multiplication
                 batch_scores = torch.matmul(batch_image_embeds, batch_text_embeds.permute(0, 2, 1))
 
-                scores.append(batch_scores)
-
-            all_scores = torch.cat(scores, dim=0)
+                if all_scores is None:
+                    all_scores = batch_scores
+                else:
+                    all_scores = torch.cat([all_scores, batch_scores], dim=0)
 
             self.aro_scores[name] = all_scores
 
@@ -861,7 +851,7 @@ class CrepeEvaluator(BaseEvaluator):
                     'text': [*sample['text'], *sample['hard_texts']],
                     'images': sample['images'],
                 })))
-                inputs.to('cuda')
+                inputs.to(self.model.device)
 
                 outputs = self.model(**inputs)
 
@@ -951,7 +941,7 @@ class SugarCrepeEvaluator(BaseEvaluator):
                         'text': [*sample['text'], *sample['hard_texts']],
                         'images': sample['images'],
                     })))
-                    inputs.to('cuda')
+                    inputs.to(self.model.device)
 
                     outputs = self.model(**inputs)
 
