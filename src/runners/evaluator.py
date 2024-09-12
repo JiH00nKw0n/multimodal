@@ -111,11 +111,9 @@ class RetrievalEvaluator(BaseEvaluator):
         Raises:
             TypeError: If `text` in the dataset is not of type `str` or `list`.
         """
-
         image_idx = 0
         text_idx = 0
 
-        # Load dataset using a DataLoader, with the dummy_collator handling input structure
         dataloader = tqdm(DataLoader(
             self.evaluate_dataset,
             batch_size=batch_size,
@@ -130,14 +128,12 @@ class RetrievalEvaluator(BaseEvaluator):
                 image_sample = f"image_{image_idx}"
 
                 if isinstance(text_sample, str):
-                    # Handle single text for the image
                     text_sample_name = f"text_{text_idx}"
                     self.qrels_text_to_image[text_sample_name][image_sample] = 1
                     self.qrels_image_to_text[image_sample][text_sample_name] = 1
                     text_idx += 1
 
                 elif isinstance(text_sample, list):
-                    # Handle multiple texts for the image
                     for _text in text_sample:
                         text_sample_name = f"text_{text_idx}"
                         self.qrels_text_to_image[text_sample_name][image_sample] = 1
@@ -149,7 +145,6 @@ class RetrievalEvaluator(BaseEvaluator):
 
                 image_idx += 1
 
-            # Process the samples
             processed_samples = process_samples(samples)
             inputs = self.data_collator(processed_samples)
             inputs.to('cuda')
@@ -183,6 +178,9 @@ class RetrievalEvaluator(BaseEvaluator):
             return None
         k_values = self.k_values if self.k_values is not None else [1, 5, 10]
 
+        # Get the maximum k to optimize the top_k calculation
+        max_k = max(k_values)
+
         print("Encoding all data...")
         self._encode_dataset(batch_size=batch_size)
 
@@ -194,35 +192,54 @@ class RetrievalEvaluator(BaseEvaluator):
 
         # Compute similarity matrix between text and image embeddings
         dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
+
+        # Convert the similarity matrix to a tensor (no need for numpy conversion)
         dist_matrix = dist_matrix.detach()
 
         # Create run dictionaries for pytrec_eval
         run_text_to_image = {}
         run_image_to_text = {}
 
-        # Prepare data for text-to-image retrieval (query: text, docs: images)
-        for i in tqdm(range(num_text), desc='Prepare relation data for text-to-image retrieval'):
-            run_text_to_image[f"text_{i}"] = {f"image_{j}": float(dist_matrix[i, j].item()) for j in range(num_im)}
+        # Perform top-k calculation based on max_k
+        # Get top max_k for text-to-image retrieval
+        topk_text_to_image_scores, topk_text_to_image_indices = dist_matrix.topk(k=max_k, dim=1)
 
-        # Prepare data for image-to-text retrieval (query: image, docs: texts)
-        dist_matrix = dist_matrix.T  # dist_matrix[i] gives logits for ith image
-        for i in tqdm(range(num_im), desc='Prepare relation data for image-to-text retrieval'):
-            run_image_to_text[f"image_{i}"] = {f"text_{j}": float(dist_matrix[i, j].item()) for j in range(num_text)}
+        # Prepare data for text-to-image retrieval using the top-k results
+        for text_idx in tqdm(range(num_text), desc='Prepare data for text-to-image retrieval using the top-k results'):
+            run_text_to_image[f"text_{text_idx}"] = {
+                f"image_{topk_text_to_image_indices[text_idx, i].item()}": float(
+                    topk_text_to_image_scores[text_idx, i].item())
+                for i in range(max_k)
+            }
+
+        # Get top max_k for image-to-text retrieval (using the transposed dist_matrix)
+        topk_image_to_text_scores, topk_image_to_text_indices = dist_matrix.T.topk(k=max_k, dim=1)
+
+        # Prepare data for image-to-text retrieval using the top-k results
+        for im_idx in tqdm(range(num_im), desc='Prepare data for image-to-text retrieval using the top-k results'):
+            run_image_to_text[f"image_{im_idx}"] = {
+                f"text_{topk_image_to_text_indices[im_idx, i].item()}": float(
+                    topk_image_to_text_scores[im_idx, i].item())
+                for i in range(max_k)
+            }
 
         # Initialize pytrec_eval evaluator for text-to-image retrieval
         evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_text_to_image, {f'recall_{k}' for k in k_values})
 
         # Calculate metrics for text-to-image retrieval
         t2i_results = evaluator.evaluate(run_text_to_image)
-        t2i_recalls = {f"Recall@{k}": sum([v[f"recall_{k}"] for v in t2i_results.values()]) / num_text for k in
-                       k_values}
+        t2i_recalls = {
+            f"Recall@{k}": sum([v[f"recall_{k}"] for v in t2i_results.values()]) / num_text for k in k_values
+        }
 
         # Initialize pytrec_eval evaluator for image-to-text retrieval
         evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_image_to_text, {f'recall_{k}' for k in k_values})
 
         # Calculate metrics for image-to-text retrieval
         i2t_results = evaluator.evaluate(run_image_to_text)
-        i2t_recalls = {f"Recall@{k}": sum([v[f"recall_{k}"] for v in i2t_results.values()]) / num_im for k in k_values}
+        i2t_recalls = {
+            f"Recall@{k}": sum([v[f"recall_{k}"] for v in i2t_results.values()]) / num_im for k in k_values
+        }
 
         # Save the results
         self._save_result({"t2i": t2i_recalls, "i2t": i2t_recalls})
@@ -626,10 +643,10 @@ class AROEvaluator(BaseEvaluator):
 
                 for sample in samples:
                     if 'order' not in name.lower():
-                        inputs = self.data_collator(process_samples(list({
+                        inputs = self.data_collator(process_samples([{
                             'text': [*sample['text'], *sample['hard_texts']],
                             'images': sample['images'],
-                        })))
+                        }]))
                         inputs.to('cuda')
 
                         outputs = self.model(**inputs)
