@@ -669,10 +669,10 @@ class AROEvaluator(BaseEvaluator):
 
                     else:  # Special handling if 'order' is part of the dataset name
                         for _text, _hard_texts in zip(sample['text'], sample['hard_texts']):
-                            inputs = self.data_collator(process_samples(list({
+                            inputs = self.data_collator(process_samples([{
                                 'text': [*[_text], *_hard_texts],  # Process each normal text and hard text individually
                                 'images': sample['images'],  # Corresponding images
-                            })))
+                            }]))
                             inputs.to(self.model.device)
 
                             # Model forward pass for each text and hard_text pair
