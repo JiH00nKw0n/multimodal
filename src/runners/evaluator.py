@@ -476,12 +476,12 @@ class SVOEvaluator(BaseEvaluator):
         for samples in dataloader:
             # Prepare inputs for positive and negative image-text pairs
             input_pos = self.data_collator(list(map(lambda d: {
-                'text': d['sentences'],
+                'text': d['sentence'],
                 'images': d['pos_image'],
             }, samples)))
 
             input_neg = self.data_collator(list(map(lambda d: {
-                'text': d['sentences'],
+                'text': d['sentence'],
                 'images': d['neg_image'],
             }, samples)))
 
