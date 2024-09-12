@@ -5,7 +5,6 @@ from typing import Any, Annotated, Dict, DefaultDict, List, Optional, Tuple, Typ
 
 import numpy as np
 import pandas as pd
-import pytrec_eval
 import torch
 from datasets import DatasetDict, tqdm
 from pydantic import Field
@@ -125,19 +124,19 @@ class RetrievalEvaluator(BaseEvaluator):
         for samples in dataloader:
             for sample in samples:
                 text_sample = sample['text']
-                image_sample = f"image_{image_idx}"
+                image_sample_name = f"image_{image_idx}"
 
                 if isinstance(text_sample, str):
                     text_sample_name = f"text_{text_idx}"
-                    self.qrels_text_to_image[text_sample_name][image_sample] = 1
-                    self.qrels_image_to_text[image_sample][text_sample_name] = 1
+                    self.qrels_text_to_image[text_sample_name][image_sample_name] = 1
+                    self.qrels_image_to_text[image_sample_name][text_sample_name] = 1
                     text_idx += 1
 
                 elif isinstance(text_sample, list):
                     for _text in text_sample:
                         text_sample_name = f"text_{text_idx}"
-                        self.qrels_text_to_image[text_sample_name][image_sample] = 1
-                        self.qrels_image_to_text[image_sample][text_sample_name] = 1
+                        self.qrels_text_to_image[text_sample_name][image_sample_name] = 1
+                        self.qrels_image_to_text[image_sample_name][text_sample_name] = 1
                         text_idx += 1
 
                 else:
@@ -160,25 +159,24 @@ class RetrievalEvaluator(BaseEvaluator):
     @torch.no_grad()
     def evaluate(self, batch_size: Optional[int] = 128):
         """
-        Evaluates the retrieval performance using pytrec_eval for metrics calculation.
-        Both text-to-image and image-to-text retrieval tasks are evaluated.
+        Evaluates the retrieval performance without using pytrec_eval. This function computes
+        recall metrics for text-to-image and image-to-text retrieval tasks.
 
         Args:
             batch_size (int, optional): The number of samples per batch (default is 128).
 
         Returns:
-            None: Results are saved to a `result.json` file in the output directory.
+            None: Results are printed and saved to a `result.json` file in the output directory.
         """
         file_path = os.path.join(self.output_dir, f'{self.dataset_name}.json')
 
         if os.path.isfile(file_path) and not self.overwrite_results:
             logger.info(
-                f"{self.dataset_name} results already exists. Skipping. Set overwrite_results=True to overwrite."
+                f"{self.dataset_name} results already exist. Skipping. Set overwrite_results=True to overwrite."
             )
             return None
-        k_values = self.k_values if self.k_values is not None else [1, 5, 10]
 
-        # Get the maximum k to optimize the top_k calculation
+        k_values = self.k_values if self.k_values is not None else [1, 5, 10]
         max_k = max(k_values)
 
         print("Encoding all data...")
@@ -192,57 +190,79 @@ class RetrievalEvaluator(BaseEvaluator):
 
         # Compute similarity matrix between text and image embeddings
         dist_matrix = torch.stack(text_embeds) @ torch.stack(image_embeds).T
-
-        # Convert the similarity matrix to a tensor (no need for numpy conversion)
         dist_matrix = dist_matrix.detach()
 
-        # Create run dictionaries for pytrec_eval
-        run_text_to_image = {}
-        run_image_to_text = {}
+        # Initialize dictionaries to store recall results
+        text_to_image_recalls = {f"Recall@{k}": 0.0 for k in k_values}
+        image_to_text_recalls = {f"Recall@{k}": 0.0 for k in k_values}
 
-        # Perform top-k calculation based on max_k
-        # Get top max_k for text-to-image retrieval
-        topk_text_to_image_scores, topk_text_to_image_indices = dist_matrix.topk(k=max_k, dim=1)
+        # Text-to-image recall calculation using topk
+        print("Text-to-image recall...")
+        topk_text_to_image_scores, topk_text_to_image_indices = torch.topk(
+            dist_matrix, max_k, dim=1, largest=True, sorted=True
+        )
 
-        # Prepare data for text-to-image retrieval using the top-k results
-        for text_idx in tqdm(range(num_text), desc='Prepare data for text-to-image retrieval using the top-k results'):
-            run_text_to_image[f"text_{text_idx}"] = {
-                f"image_{topk_text_to_image_indices[text_idx, i].item()}": float(
-                    topk_text_to_image_scores[text_idx, i].item())
-                for i in range(max_k)
-            }
+        # Loop once and calculate recall for all k_values
+        for text_idx in tqdm(
+                range(num_text), desc='Prepare data for text-to-image retrieval using the top-k results'
+        ):
+            correct_for_k = {k: False for k in k_values}
+            for rank, img_idx in enumerate(topk_text_to_image_indices[text_idx, :max_k]):
+                text_sample_name = f"text_{text_idx}"
+                image_sample_name = f"image_{img_idx.item()}"
+                if self.qrels_text_to_image[text_sample_name].get(image_sample_name, 0) == 1:
+                    for k in k_values:
+                        if rank < k:
+                            correct_for_k[k] = True
 
-        # Get top max_k for image-to-text retrieval (using the transposed dist_matrix)
-        topk_image_to_text_scores, topk_image_to_text_indices = dist_matrix.T.topk(k=max_k, dim=1)
+            # Update recall for each k
+            for k in k_values:
+                if correct_for_k[k]:
+                    text_to_image_recalls[f"Recall@{k}"] += 1
 
-        # Prepare data for image-to-text retrieval using the top-k results
-        for im_idx in tqdm(range(num_im), desc='Prepare data for image-to-text retrieval using the top-k results'):
-            run_image_to_text[f"image_{im_idx}"] = {
-                f"text_{topk_image_to_text_indices[im_idx, i].item()}": float(
-                    topk_image_to_text_scores[im_idx, i].item())
-                for i in range(max_k)
-            }
+        # Normalize recall values
+        for k in k_values:
+            text_to_image_recalls[f"Recall@{k}"] /= num_text
 
-        # Initialize pytrec_eval evaluator for text-to-image retrieval
-        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_text_to_image, {f'recall_{k}' for k in k_values})
+        # Image-to-text recall calculation using topk
+        print("Image-to-text recall...")
+        dist_matrix = dist_matrix.T  # Transpose to calculate image-to-text recall
+        topk_image_to_text_scores, topk_image_to_text_indices = torch.topk(dist_matrix, max_k, dim=1, largest=True,
+                                                                           sorted=True)
 
-        # Calculate metrics for text-to-image retrieval
-        t2i_results = evaluator.evaluate(run_text_to_image)
-        t2i_recalls = {
-            f"Recall@{k}": sum([v[f"recall_{k}"] for v in t2i_results.values()]) / num_text for k in k_values
-        }
+        # Loop once and calculate recall for all k_values
+        for im_idx in tqdm(
+                range(num_im), desc='Prepare data for image-to-text retrieval using the top-k results'
+        ):
+            correct_for_k = {k: False for k in k_values}
+            for rank, text_idx in enumerate(topk_image_to_text_indices[im_idx, :max_k]):
+                image_sample_name = f"image_{im_idx}"
+                text_sample_name = f"text_{text_idx.item()}"
+                if self.qrels_image_to_text[image_sample_name].get(text_sample_name, 0) == 1:
+                    for k in k_values:
+                        if rank < k:
+                            correct_for_k[k] = True
 
-        # Initialize pytrec_eval evaluator for image-to-text retrieval
-        evaluator = pytrec_eval.RelevanceEvaluator(self.qrels_image_to_text, {f'recall_{k}' for k in k_values})
+            # Update recall for each k
+            for k in k_values:
+                if correct_for_k[k]:
+                    image_to_text_recalls[f"Recall@{k}"] += 1
 
-        # Calculate metrics for image-to-text retrieval
-        i2t_results = evaluator.evaluate(run_image_to_text)
-        i2t_recalls = {
-            f"Recall@{k}": sum([v[f"recall_{k}"] for v in i2t_results.values()]) / num_im for k in k_values
-        }
+        # Normalize recall values
+        for k in k_values:
+            image_to_text_recalls[f"Recall@{k}"] /= num_im
 
-        # Save the results
-        self._save_result({"t2i": t2i_recalls, "i2t": i2t_recalls})
+        # Print the results
+        print("Text-to-image Recall@K")
+        for k, recall in text_to_image_recalls.items():
+            print(f"{k}: {100 * recall:.2f}%")
+
+        print("Image-to-text Recall@K")
+        for k, recall in image_to_text_recalls.items():
+            print(f"{k}: {100 * recall:.2f}%")
+
+        # Save the results (optional, based on your original implementation)
+        self._save_result({"t2i": text_to_image_recalls, "i2t": image_to_text_recalls})
 
 
 def text_correct(result):
