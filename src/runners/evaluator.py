@@ -790,8 +790,8 @@ class AROEvaluator(BaseEvaluator):
         flickr_correct_mask: torch.BoolTensor = (flickr_preds == 0)
 
         result_records = {
-            'COCO_Order': [{"Precision@1": coco_correct_mask.mean().item()}],
-            'Flickr_Order': [{"Precision@1": flickr_correct_mask.mean().item()}],
+            'COCO_Order': [{"Precision@1": coco_correct_mask.float().mean().item()}],
+            'Flickr_Order': [{"Precision@1": flickr_correct_mask.float().mean().item()}],
         }
 
         return result_records
@@ -860,10 +860,10 @@ class CrepeEvaluator(BaseEvaluator):
 
         for samples in dataloader:
             for sample in samples:
-                inputs = self.data_collator(process_samples(list({
+                inputs = self.data_collator(process_samples([{
                     'text': [*sample['text'], *sample['hard_texts']],
                     'images': sample['images'],
-                })))
+                }]))
                 inputs.to(self.model.device)
 
                 outputs = self.model(**inputs)
@@ -950,10 +950,10 @@ class SugarCrepeEvaluator(BaseEvaluator):
             correct_cnt = 0
             for samples in dataloader:
                 for sample in samples:
-                    inputs = self.data_collator(process_samples(list({
+                    inputs = self.data_collator(process_samples([{
                         'text': [*sample['text'], *sample['hard_texts']],
                         'images': sample['images'],
-                    })))
+                    }]))
                     inputs.to(self.model.device)
 
                     outputs = self.model(**inputs)
