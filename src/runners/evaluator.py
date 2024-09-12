@@ -641,56 +641,69 @@ class AROEvaluator(BaseEvaluator):
             ))
             dataloader.set_description(f"Computing ARO {name} scores")
 
-            all_scores = None  # Initialize to None for concatenating later
+            all_scores = []  # Initialize an empty list to store all batch scores later
 
-            for samples in dataloader:
+            for samples in dataloader:  # `samples` contains a batch of data
+                batch_image_embeds = []  # List to store image embeddings for the current batch
+                batch_text_embeds = []  # List to store text embeddings for the current batch
 
-                batch_image_embeds = []
-                batch_text_embeds = []
-
-                for sample in samples:
+                for sample in samples:  # Iterate through each sample in the batch
                     if 'order' not in name.lower():
+                        # Prepare input data for the model (text + images)
                         inputs = self.data_collator(process_samples([{
-                            'text': [*sample['text'], *sample['hard_texts']],
-                            'images': sample['images'],
+                            'text': [*sample['text'], *sample['hard_texts']],  # Combine normal text and hard texts
+                            'images': sample['images'],  # Corresponding images
                         }]))
-                        inputs.to(self.model.device)
+                        inputs.to(self.model.device)  # Move input to the appropriate device
 
+                        # Model forward pass, getting text and image embeddings
                         outputs = self.model(**inputs)
 
-                        _text_embeds = outputs.text_embeds.cpu()
-                        _image_embeds = outputs.image_embeds.cpu()
+                        # Extract the text and image embeddings
+                        _text_embeds = outputs.text_embeds  # Shape: (L, D) where L is the number of text options and D is the embedding dimension
+                        _image_embeds = outputs.image_embeds  # Shape: (K, D) where K is the number of image options and D is the embedding dimension
 
-                        batch_text_embeds.append(_text_embeds.unsqueeze(1))
-                        batch_image_embeds.append(_image_embeds.unsqueeze(1))
-                    else:
+                        # Append the embeddings with an extra batch dimension for concatenation later
+                        batch_text_embeds.append(_text_embeds.unsqueeze(0))  # Shape: (1, L, D)
+                        batch_image_embeds.append(_image_embeds.unsqueeze(0))  # Shape: (1, K, D)
+
+                    else:  # Special handling if 'order' is part of the dataset name
                         for _text, _hard_texts in zip(sample['text'], sample['hard_texts']):
                             inputs = self.data_collator(process_samples(list({
-                                'text': [*[_text], *_hard_texts],
-                                'images': sample['images'],
+                                'text': [*[_text], *_hard_texts],  # Process each normal text and hard text individually
+                                'images': sample['images'],  # Corresponding images
                             })))
                             inputs.to(self.model.device)
 
+                            # Model forward pass for each text and hard_text pair
                             outputs = self.model(**inputs)
 
-                            _text_embeds = outputs.text_embeds.cpu()
-                            _image_embeds = outputs.image_embeds.cpu()
+                            # Extract the embeddings for text and images
+                            _text_embeds = outputs.text_embeds  # Shape: (L, D)
+                            _image_embeds = outputs.image_embeds  # Shape: (K, D)
 
-                            batch_text_embeds.append(_text_embeds.unsqueeze(1))
-                            batch_image_embeds.append(_image_embeds.unsqueeze(1))
+                            # Append the embeddings with an extra batch dimension for concatenation later
+                            batch_text_embeds.append(_text_embeds.unsqueeze(0))  # Shape: (1, L, D)
+                            batch_image_embeds.append(_image_embeds.unsqueeze(0))  # Shape: (1, K, D)
 
-                # Concatenate the batch embeddings along the correct dimension
-                batch_text_embeds = torch.cat(batch_text_embeds, dim=1)
-                batch_image_embeds = torch.cat(batch_image_embeds, dim=1)
+                # Concatenate embeddings along the 0th (batch) dimension
+                batch_text_embeds = torch.cat(batch_text_embeds, dim=0)  # Shape: (n_samples, L, D)
+                batch_image_embeds = torch.cat(batch_image_embeds, dim=0)  # Shape: (n_samples, K, D)
 
-                # Perform matrix multiplication
+                # Compute the similarity scores using matrix multiplication
                 batch_scores = torch.matmul(batch_image_embeds, batch_text_embeds.permute(0, 2, 1))
+                # batch_image_embeds: (n_samples, K, D)
+                # batch_text_embeds.permute(0, 2, 1): (n_samples, D, L)
+                # Resulting shape: (n_samples, K, L)
+                # This computes similarity scores between K image options and L text options for each sample
 
-                if all_scores is None:
-                    all_scores = batch_scores
-                else:
-                    all_scores = torch.cat([all_scores, batch_scores], dim=0)
+                all_scores.append(batch_scores)  # Append the scores for the current batch
 
+            # After processing all batches, concatenate the scores along the first dimension
+            all_scores = torch.cat(all_scores, dim=0)  # Shape: (total_samples, K, L)
+            # total_samples is the sum of all n_samples across the entire dataset
+
+            # Store the computed scores for the dataset under the name key
             self.aro_scores[name] = all_scores
 
     def evaluate_relation(self):
