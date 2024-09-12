@@ -347,6 +347,11 @@ class WinogroundEvaluator(BaseEvaluator):
                 'images': d['image_1'],
             }, samples)))
 
+            input_c0_i0 = input_c0_i0.to(self.model.device)
+            input_c1_i0 = input_c1_i0.to(self.model.device)
+            input_c0_i1 = input_c0_i1.to(self.model.device)
+            input_c1_i1 = input_c1_i1.to(self.model.device)
+
             # Collect IDs for each example in the batch
             ids = list(map(lambda d: d['id'], samples))
 
@@ -358,10 +363,10 @@ class WinogroundEvaluator(BaseEvaluator):
 
             # Extract scores for each example and store in winoground_scores
             for idx, example_id in enumerate(ids):
-                score_c0_i0 = output_c0_i0.logits_per_image[idx].item()
-                score_c1_i0 = output_c1_i0.logits_per_image[idx].item()
-                score_c0_i1 = output_c0_i1.logits_per_image[idx].item()
-                score_c1_i1 = output_c1_i1.logits_per_image[idx].item()
+                score_c0_i0 = output_c0_i0.logits_per_image[idx, idx].item()
+                score_c1_i0 = output_c1_i0.logits_per_image[idx, idx].item()
+                score_c0_i1 = output_c0_i1.logits_per_image[idx, idx].item()
+                score_c1_i1 = output_c1_i1.logits_per_image[idx, idx].item()
 
                 self.winoground_scores.append({
                     "id": example_id,
@@ -485,6 +490,9 @@ class SVOEvaluator(BaseEvaluator):
                 'images': d['neg_image'],
             }, samples)))
 
+            input_pos = input_pos.to(self.model.device)
+            input_neg = input_neg.to(self.model.device)
+
             ids = _get_id_list(s=samples)
 
             # Get model outputs for positive and negative samples
@@ -493,8 +501,8 @@ class SVOEvaluator(BaseEvaluator):
 
             # Store scores for each sample
             for idx, example_id in enumerate(ids):
-                score_pos = output_pos.logits_per_image[idx].item()
-                score_neg = output_neg.logits_per_image[idx].item()
+                score_pos = output_pos.logits_per_image[idx, idx].item()
+                score_neg = output_neg.logits_per_image[idx, idx].item()
 
                 self.svo_scores.append({
                     "id": example_id,
