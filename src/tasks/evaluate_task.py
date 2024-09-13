@@ -17,7 +17,7 @@ from src.utils import load_json
 __all__ = [
     "MultiDatasetEvaluateTask",
     "MultiDatasetEvaluateTaskWithPretrainedModel",
-    "MultDatasetEvaluateTaskWithCustomModel"
+    "MultiDatasetEvaluateTaskWithCustomModel"
 ]
 
 # Type aliases for common types

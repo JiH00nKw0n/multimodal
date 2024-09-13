@@ -20,7 +20,7 @@ from src.tasks.train_task import (
 from .evaluate_task import (
     MultiDatasetEvaluateTask,
     MultiDatasetEvaluateTaskWithPretrainedModel,
-    MultDatasetEvaluateTaskWithCustomModel,
+    MultiDatasetEvaluateTaskWithCustomModel,
 )
 
 __all__ = [
@@ -40,7 +40,7 @@ __all__ = [
     "DatasetTrainTaskWithPretrainedModel",
     "MultiDatasetEvaluateTask",
     "MultiDatasetEvaluateTaskWithPretrainedModel",
-    "MultDatasetEvaluateTaskWithCustomModel",
+    "MultiDatasetEvaluateTaskWithCustomModel",
 ]
 
 
