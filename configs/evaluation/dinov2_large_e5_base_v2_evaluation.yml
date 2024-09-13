@@ -1,0 +1,85 @@
+run:
+  task: 'MultiDatasetEvaluateTaskWithCustomModel'
+  seed: 2024
+  output_dir: &output_dir '/mnt/elice/multimodal/_result/dino_v2_large_e5_base_v2/checkpoint-1000'
+
+model:
+  model_cls: 'BaseModel'
+  config_cls: 'BaseConfig'
+  config_path: '/mnt/elice/multimodal/_output/dinov2_large_e5_base_v2/checkpoint-2000/config.json'
+  config:
+    pretrained_model_name_or_path: '/mnt/elice/multimodal/_output/dinov2_large_e5_base_v2/checkpoint-1000'
+
+processor:
+  processor_cls: "BaseProcessor"
+  config:
+      text_pretrained_model_name_or_path: 'intfloat/e5-base-v2'
+      vision_pretrained_model_name_or_path: 'facebook/dinov2-large'
+
+dataset:
+  - Flickr30kDatasetBuilder:
+      split: 'test'
+  - COCOCaptionsDatasetBuilder:
+      split: 'test'
+  - ARODatasetBuilder:
+      split: 'train'
+  - CREPEDatasetBuilder:
+      split: 'train'
+  - SUGARCREPEDatasetBuilder:
+      split: 'train'
+  - SVODatasetBuilder:
+      split: 'train'
+  - WinogroundDatasetBuilder:
+      split: 'test'
+
+evaluator:
+  - RetrievalEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: &max_length 64
+      k_values:
+        - 1
+        - 5
+        - 10
+      output_dir: *output_dir
+  - RetrievalEvaluator:
+      collator:
+        collator_cls: 'ImageURLCollator'
+        config:
+          max_length: *max_length
+      k_values:
+        - 1
+        - 5
+        - 10
+      output_dir: *output_dir
+  - AROEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: *max_length
+      output_dir: *output_dir
+  - CrepeEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: *max_length
+      output_dir: *output_dir
+  - SugarCrepeEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: *max_length
+      output_dir: *output_dir
+  - SVOEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: *max_length
+      output_dir: *output_dir
+  - WinogroundEvaluator:
+      collator:
+        collator_cls: 'ImageCollator'
+        config:
+          max_length: *max_length
+      output_dir: *output_dir
