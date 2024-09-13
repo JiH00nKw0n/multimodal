@@ -231,8 +231,8 @@ class MultiDatasetEvaluateTaskWithPretrainedModel(MultiDatasetEvaluateTask, Task
 
 
 @add_end_docstrings(EVALUATE_TASK_DOCSTRING)
-@registry.register_task("MultDatasetEvaluateTaskWithCustomModel")
-class MultDatasetEvaluateTaskWithCustomModel(MultiDatasetEvaluateTask, TaskWithCustomModel):
+@registry.register_task("MultiDatasetEvaluateTaskWithCustomModel")
+class MultiDatasetEvaluateTaskWithCustomModel(MultiDatasetEvaluateTask, TaskWithCustomModel):
     """
     An evaluation task for custom models. Inherits from `EvaluateTask` and `TaskWithCustomModel`.
     """
