@@ -33,51 +33,71 @@ from torchvision.datasets.utils import (
     extract_archive,
 )
 from typing import Optional, Union
-import multiprocessing
 from PIL import Image
 import requests
 from io import BytesIO
-from tenacity import retry, stop_after_attempt, wait_fixed
 from concurrent.futures import ThreadPoolExecutor
 import aiohttp
 import asyncio
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
-def load_image(url: str) -> Image:
-    response = requests.get(url)
-    response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
-    img = Image.open(BytesIO(response.content)).convert("RGB")
-    return img
+# 이미지 로드 및 리사이즈 함수
+def load_and_resize_image(url: str, size=(256, 256)) -> Image:
+    try:
+        response = requests.get(url, timeout=5)  # 타임아웃 설정
+        response.raise_for_status()  # HTTP 에러 발생 시 예외 처리
+        img = Image.open(BytesIO(response.content))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img_resized = img.resize(size)  # 리사이즈 추가
+        return img_resized
+    except Exception:
+        return None  # 예외 발생 시 None 반환
 
-def process_batch(urls: List[str]) -> List[Any]:
-    with ThreadPoolExecutor(max_workers=512) as executor:
-        images = list(executor.map(load_image, urls))
-    return [img for img in images if img is not None]
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+# 멀티스레딩으로 배치 처리
+def process_batch(urls: List[str], size=(256, 256)) -> List[Any]:
+    max_workers = min(len(urls), os.cpu_count() * 2)  # 스레드 수 최적화
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        images = list(executor.map(lambda url: load_and_resize_image(url, size), urls))
+    return [img for img in images if img is not None]  # None 값 제거
+
+
+# 비동기 URL에서 이미지 바이트 다운로드
 async def fetch_image_bytes(session, url: str) -> bytes:
-    async with session.get(url) as response:
-        response.raise_for_status()  # HTTP 오류 상태일 경우 예외 발생
-        return await response.read()
+    try:
+        async with session.get(url, timeout=10) as response:  # 타임아웃 설정
+            response.raise_for_status()
+            return await response.read()
+    except Exception:
+        return None  # 예외 발생 시 None 반환
 
-# 이미지를 멀티스레딩으로 처리하는 함수
-def process_image(image_bytes: bytes) -> Image:
-    img = Image.open(BytesIO(image_bytes)).convert("RGB")
-    return img
 
-# 비동기 + 스레딩 결합한 배치 처리 함수
-async def process_batch_async(urls: List[str]) -> List[Any]:
+# 이미지 바이트를 멀티스레딩으로 처리
+def process_and_resize_image(image_bytes: bytes, size=(256, 256)) -> Image:
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img_resized = img.resize(size)  # 리사이즈 추가
+        return img_resized
+    except Exception:
+        return None
+
+
+# 비동기 + 스레딩을 활용한 배치 처리
+async def process_batch_async(urls: List[str], size=(256, 256)) -> List[Any]:
     async with aiohttp.ClientSession() as session:
-        # 1. 비동기로 네트워크에서 이미지 데이터를 가져옴
+        # 비동기로 이미지 바이트 가져오기
         image_bytes_tasks = [fetch_image_bytes(session, url) for url in urls]
         image_bytes_results = await asyncio.gather(*image_bytes_tasks)
 
-        # 2. ThreadPoolExecutor를 사용하여 이미지 처리 병렬화
-        with ThreadPoolExecutor() as executor:
-            images = list(executor.map(process_image, image_bytes_results))
+        # 멀티스레딩으로 이미지 처리 및 리사이즈
+        with ThreadPoolExecutor(max_workers=os.cpu_count() * 5) as executor:
+            images = list(
+                executor.map(lambda image_bytes: process_and_resize_image(image_bytes, size), image_bytes_results))
 
-    return images
+    return [img for img in images if img is not None]  # None 값 제거
 
 
 def _get_vector_norm(tensor: torch.Tensor) -> torch.Tensor:
