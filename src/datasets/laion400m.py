@@ -79,7 +79,7 @@ class LaionCOCOIterableDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBui
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(
             "kakaobrain/coyo-700m", trust_remote_code=True, split=self.split,
-            streaming=True, token='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'
+            streaming=True, token=True
         )
         dataset = dataset.rename_columns({"url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
