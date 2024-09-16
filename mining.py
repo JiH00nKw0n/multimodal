@@ -2,6 +2,8 @@ import os
 import spacy
 import torch
 import pickle
+import random
+import logging
 import argparse
 import numpy as np
 from tqdm import tqdm
@@ -10,14 +12,12 @@ from spacy.tokens import Doc, Token, Span
 from typing import Union, List, Dict, Optional, Any, Callable
 
 from src.common import registry, ImageSimilarityCalculator
-from src.datasets.base import SequenceTextDatasetBuilder, SequenceTextDatasetWithHNBuilder, BaseDatasetBuilder
 
 from datasets import concatenate_datasets, load_dataset, Dataset, IterableDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--debug', action=argparse.BooleanOptionalAction)
 parser.add_argument('--raw_dataset_url_or_path', required=True, type=str)
-parser.add_argument('--subset_size', type=int)
 parser.add_argument('--seed', default=2024, type=int)
 
 parser.add_argument('--spacy_model_name', default='en_core_web_sm')
@@ -30,7 +30,11 @@ parser.add_argument('--max_num_texts', default=5, type=int)
 parser.add_argument('--rng', default=None)
 
 # Export option
+parser.add_argument('--subset_size', type=int)
 parser.add_argument('--export_fname', required=True, type=str)
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.FileHandler(f'./logging/mining.log', 'w'))
 
 
 def setup_seeds(seed: int) -> None:
@@ -122,7 +126,7 @@ def process_example(example: Dict, nlp: spacy.Language, generate_negative_captio
     }
 
 def negative_image_mining(dataset: Dataset) -> Dataset:   
-    if os.path.isfile(similarity_dict_cahe_file_name):
+    if similarity_dict_cahe_file_name is not None and os.path.isfile(similarity_dict_cahe_file_name):
         with open(similarity_dict_cahe_file_name, 'rb') as f:
             similarity_dict = pickle.load(f)
         logger.debug('Similarity dictionary loaded')
@@ -159,7 +163,7 @@ def negative_image_mining(dataset: Dataset) -> Dataset:
     return Dataset.from_list(new_examples)
 
 
-def negative_text_mining(self, dataset: Dataset) -> Dataset:
+def negative_text_mining(dataset: Dataset) -> Dataset:
     nlp = spacy.load(args.spacy_model_name)
 
     # 시스템의 CPU 코어 수에 따라 num_proc를 설정
@@ -179,7 +183,7 @@ def negative_text_mining(self, dataset: Dataset) -> Dataset:
 
     return dataset_with_neg_text
 
-def generate_negative_captions(self, doc: Doc) -> List[str]:
+def generate_negative_captions(doc: Doc) -> List[str]:
     # 명사구(Noun Phrases)는 3개 이상의 토큰으로 구성된 경우만 포함
     noun_phrases = [np for np in doc.noun_chunks if len(np) >= 3]
 
@@ -234,15 +238,21 @@ if __name__ == '__main__':
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
+        os.environ['DEBUG'] = 'TRUE'
     else:
         logging.basicConfig(level=logging.INFO)
+        os.environ['DEBUG'] = 'FALSE'
     
     assert os.getenv('DATA_ROOT_DIR')
-    assert os.getnev('TARGET_DATASET')
-    assert os.getnev('SIMILARITY_DICT_FILE')
+    assert os.getenv('TARGET_DATASET')
     
     os.makedirs(f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}', exist_ok=True)
-    similarity_dict_cahe_file_name = f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}/similarity_dict/{os.getnev("SIMILARITY_DICT_FILE")}.pickle'
+    os.makedirs(f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}/embeddings', exist_ok=True)
+    os.makedirs(f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}/similarity_dict', exist_ok=True)
+    if os.getenv('SIMILARITY_DICT_FILE'):
+        similarity_dict_cahe_file_name = f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}/similarity_dict/{os.getenv("SIMILARITY_DICT_FILE")}.pickle'
+    else:
+        similarity_dict_cahe_file_name = None
 
     setup_seeds(args.seed)
 
@@ -250,12 +260,25 @@ if __name__ == '__main__':
     dataset = load_dataset(args.raw_dataset_url_or_path, trust_remote_code=True, split='train')
     logger.debug(f'Raw dataset:\n{dataset}')
     
-    # For CC3M
-    # __key__ : local file path
-    # jpg : PIL images which are heavy! We cannot use them at all.
-    dataset = dataset.rename_columns({"__key__": 'images', "txt": 'text'})
-    dataset = dataset.select_columns(['images', 'text'])
-    logger.debug(f'Renamed dataset:\n{dataset}')
+    if os.getenv('TARGET_DATASET') == 'cc3m':
+        # For CC3M
+        # __key__ : local file path
+        # jpg : PIL images which are heavy! We cannot use them at all.
+        dataset = dataset.rename_columns({"__key__": 'images', "txt": 'text'})
+        dataset = dataset.select_columns(['images', 'text'])
+        logger.debug(f'Renamed dataset:\n{dataset}')
+    elif os.getenv('TARGET_DATASET') == 'cococaption':
+        # For COCOCaption
+        dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
+        dataset = dataset.select_columns(['images', 'text'])
+        logger.debug(f'Renamed dataset:\n{dataset}')  
+    elif os.getenv('TARGET_DATASET') == 'laion400m':
+        # For COCOCaption
+        dataset = dataset.rename_columns({"caption": 'text', "url": 'images'})
+        dataset = dataset.select_columns(['images', 'text'])
+        logger.debug(f'Renamed dataset:\n{dataset}')        
+    else:
+        logger.debug('Skipped column renaming')
 
     logger.debug('Image mining start')
     dataset = negative_image_mining(dataset)

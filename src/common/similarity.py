@@ -5,6 +5,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
 from datasets import Dataset
 from src.utils.utils import process_batch
+from glob import glob
 
 
 class ImageSimilarityCalculator:
@@ -107,7 +108,7 @@ class ImageSimilarityCalculator:
                     embeddings = embeddings / embeddings.norm(dim=1, keepdim=True)
                 
                 torch.save(embeddings, f'{self.emb_dir}/{cache_fname}')
-
+            
             all_embeddings.append(embeddings.cpu())
 
         # Concatenate all embeddings and move to CPU
