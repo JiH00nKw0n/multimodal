@@ -10,6 +10,7 @@ from src.datasets.builder import SequenceTextDatasetFeaturesWithImageURLBuilder
 __all__ = [
     "Laion400mIterableDatasetBuilder",
     "Laion400mDatasetBuilder",
+    "Laion400mTarPathDatasetBuilder",
 ]
 
 

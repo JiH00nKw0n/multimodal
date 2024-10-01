@@ -37,7 +37,7 @@ from src.datasets.sugarcrepe import SUGARCREPEDatasetBuilder
 from src.datasets.svo import SVODatasetBuilder
 from src.datasets.winoground import WinogroundDatasetBuilder
 from src.datasets.laion import (
-    Laion400mIterableDatasetBuilder, Laion400mDatasetBuilder
+    Laion400mIterableDatasetBuilder, Laion400mDatasetBuilder, Laion400mTarPathDatasetBuilder
 )
 
 __all__ = [
@@ -65,4 +65,5 @@ __all__ = [
     'WinogroundDatasetBuilder',
     'Laion400mIterableDatasetBuilder',
     'Laion400mDatasetBuilder',
+    'Laion400mTarPathDatasetBuilder',
 ]
