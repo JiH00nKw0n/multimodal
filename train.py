@@ -71,8 +71,6 @@ def main() -> None:
 
     task = tasks.setup_task(train_cfg)
 
-    dataset = task.build_datasets()
-
     trainer = task.build_trainer()
     trainer.add_callback(CustomWandbCallback())
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)

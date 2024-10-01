@@ -63,7 +63,7 @@ class FuseMixLayer(nn.Module):
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         _hidden_states = hidden_states
         for idx, layer in enumerate(self.layers):
-            _hidden_states = layer(hidden_states)
+            _hidden_states = layer(_hidden_states)
         _hidden_states = self.layer_norm(_hidden_states)
         _hidden_states = self.fc(_hidden_states)
 
