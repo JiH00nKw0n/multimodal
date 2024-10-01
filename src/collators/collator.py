@@ -202,19 +202,27 @@ class ImageURLCollator(BaseCollator):
             if 'text' in input_dict and not isinstance(input_dict['text'], str):
                 raise TypeError(f"Expected a string for key 'text', but got: {type(input_dict['text'])}")
 
-        # Extract all non-None image URLs from inputs
-        all_image_urls = [d['images'] for d in inputs if d['images'] is not None]
+        # Extract all non-None image URLs from inputs and corresponding texts
+        all_image_urls = []
+        all_texts = []
+        for d in inputs:
+            if d['images'] is not None:
+                all_image_urls.append(d['images'])
+                all_texts.append(d['text'])
 
         # Fetch images using the process_batch_async function if there are URLs
         images_list = asyncio.run(process_batch_async(all_image_urls)) if all_image_urls else []
 
-        # Create a dictionary to store processed data
-        processed_dict = {'images': images_list}
+        # Filter out False images and corresponding texts
+        valid_images = []
+        valid_texts = []
+        for image, text in zip(images_list, all_texts):
+            if image:  # Only include valid images and corresponding texts
+                valid_images.append(image)
+                valid_texts.append(text)
 
-        # Process all other keys in inputs and store them in the processed_dict
-        for key in inputs[0].keys():
-            if key != 'images':  # Skip the 'images' key as it's already processed
-                processed_dict[key] = [d[key] for d in inputs]
+        # Create a dictionary to store processed data
+        processed_dict = {'images': valid_images, 'text': valid_texts}
 
         # Create kwargs for processor, including padding, truncation, etc.
         kwargs = {
