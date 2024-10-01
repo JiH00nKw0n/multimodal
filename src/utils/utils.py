@@ -5,10 +5,10 @@
  For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
 """
 
+import asyncio
+import csv
 import io
 import json
-import csv
-import torch
 import logging
 import os
 import pickle
@@ -17,28 +17,123 @@ import shutil
 import urllib
 import urllib.error
 import urllib.request
-from typing import Optional, Any, Union, List
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
+from typing import Any, List, Dict
+from typing import Optional, Union
 from urllib.parse import urlparse
 
+import aiohttp
 import numpy as np
 import pandas as pd
+import requests
+import torch
+import webdataset as wds
 import yaml
+from PIL import Image
+from img2dataset import download as img2dataset_download
 from iopath.common.download import download
 from iopath.common.file_io import file_lock, g_pathmgr
-from src.common.registry import registry
 from torch.utils.model_zoo import tqdm
 from torchvision.datasets.utils import (
     check_integrity,
     download_file_from_google_drive,
     extract_archive,
 )
-from typing import Optional, Union
-from PIL import Image
-import requests
-from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor
-import aiohttp
-import asyncio
+
+from src.common.registry import registry
+
+
+def download_images_with_img2dataset(urls: List[str], output_folder: str, output_format: str):
+    """
+    Downloads images using img2dataset and stores them in the specified folder in a given format.
+
+    Args:
+        urls (List[str]): List of image URLs to download.
+        output_folder (str): The folder to store downloaded images.
+        output_format (str): The format to save the images ('files', 'webdataset', 'parquet', etc.).
+    """
+    # Save URLs to a file that img2dataset can use
+    url_list_file = os.path.join(output_folder, "url_list.txt")
+    with open(url_list_file, 'w') as f:
+        for url in urls:
+            f.write(url + '\n')
+
+    # Use img2dataset to download images in the specified format
+    img2dataset_download(
+        url_list=url_list_file,
+        output_folder=output_folder,
+        processes_count=16,
+        thread_count=64,
+        image_size=256,  # Resize the images to 256x256 or adjust as necessary
+        output_format=output_format,  # Store as individual files
+    )
+
+
+# Function to extract metadata from tar files
+def extract_metadata_from_tar(tar_file_path: str) -> Dict[str, Dict[str, str]]:
+    """
+    Extracts metadata from a tar file and returns a dictionary mapping URL to the (tar_file, key) pair.
+
+    Args:
+        tar_file_path (str): Path to the tar file.
+
+    Returns:
+        Dict: A dictionary where keys are URLs and values are dictionaries containing 'tar_file' and 'key'.
+    """
+    metadata_dict = {}
+    dataset = wds.WebDataset(tar_file_path).to_tuple("json")
+
+    for _, metadata in dataset:
+        url = metadata.get("url")
+        key = metadata.get("key")
+        if url and key:
+            metadata_dict[url] = {"tar_file": tar_file_path, "key": key}
+
+    return metadata_dict
+
+
+# Function to load all metadata from tar files in a directory
+def load_metadata_from_tar_files(tar_dir: str) -> Dict[str, Dict[str, str]]:
+    """
+    Loads metadata from all tar files in the specified directory.
+
+    Args:
+        tar_dir (str): Directory containing the tar files.
+
+    Returns:
+        Dict: A dictionary mapping URLs to their corresponding tar file and key.
+    """
+    metadata = {}
+    tar_files = [os.path.join(tar_dir, f) for f in os.listdir(tar_dir) if f.endswith(".tar")]
+
+    # Extract metadata from each tar file
+    for tar_file in tar_files:
+        metadata.update(extract_metadata_from_tar(tar_file))
+
+    return metadata
+
+
+# Function to load an image from a specific tar file and key
+def load_image_from_tar(tar_file_path: str, key: str) -> Union[Image.Image | None]:
+    """
+    Loads an image from the specified tar file and key.
+
+    Args:
+        tar_file_path (str): Path to the tar file.
+        key (str): The key of the image inside the tar file.
+
+    Returns:
+        Image.Image: The loaded PIL image.
+    """
+    dataset = wds.WebDataset(tar_file_path).decode("pil").to_tuple("jpg", "json")
+
+    # Search for the image corresponding to the key
+    for image, metadata in dataset:
+        if metadata.get("key") == key:
+            return image
+
+    return None  # Return None if the key is not found
 
 
 # 이미지 로드 및 리사이즈 함수

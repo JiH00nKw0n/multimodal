@@ -3,6 +3,7 @@ from typing import List, Optional, Union
 
 from datasets import Dataset, IterableDataset, load_dataset
 
+from src import load_metadata_from_tar_files, download_images_with_img2dataset
 from src.common import registry
 from src.datasets.builder import SequenceTextDatasetFeaturesWithImageURLBuilder
 
@@ -64,5 +65,44 @@ class Laion400mDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
         if self.num_sample is not None:
             random_indices = random.sample(range(len(dataset)), self.num_sample)
             dataset = dataset.select(random_indices)
+
+        return dataset
+
+
+@registry.register_builder('Laion400mTarPathDatasetBuilder')
+class Laion400mTarPathDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
+    """
+    A builder class for creating a non-iterable dataset for the Laion400m dataset.
+    It extends `SequenceTextDatasetFeaturesWithImageURLBuilder`.
+    """
+    split: Union[str, List[str]] = 'train'
+    name: Optional[str] = 'laion'
+    num_sample: Optional[int] = None
+    output_dir: str = "laion400m_images"  # Directory to save downloaded images
+    output_format: str = "files"  # Default to 'files'
+
+    def build_dataset(self) -> Dataset:
+        dataset = load_dataset(
+            "laion/laion400m", trust_remote_code=True, split=self.split, token='your_huggingface_token'
+        )
+        dataset = dataset.rename_columns({"caption": 'text', "url": 'images'})
+        dataset = dataset.select_columns(['images', 'text'])
+
+        # Sample from dataset if num_sample is specified
+        if self.num_sample is not None:
+            random_indices = random.sample(range(len(dataset)), self.num_sample)
+            dataset = dataset.select(random_indices)
+
+        # Extract URLs for downloading images
+        print('url loading')
+        image_urls = dataset.column("images")
+
+        # Download images using img2dataset
+        download_images_with_img2dataset(image_urls, self.output_dir, self.output_format)
+        print('load metadata')
+        metadata = load_metadata_from_tar_files(self.output_dir)
+        # Filter out examples where images are None
+        print('filtering missing images')
+        dataset = dataset.filter(lambda example: example['images'] in metadata)
 
         return dataset

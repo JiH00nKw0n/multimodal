@@ -10,7 +10,7 @@ from transformers import BatchEncoding
 from transformers.utils import add_end_docstrings
 
 from src.common.registry import registry
-from src.utils.utils import process_batch_async
+from src.utils.utils import process_batch_async, load_metadata_from_tar_files, load_image_from_tar
 from .base import BaseCollator, BASE_COLLATOR_DOCSTRING
 
 logger = logging.get_logger(__name__)
@@ -212,6 +212,105 @@ class ImageURLCollator(BaseCollator):
 
         # Fetch images using the process_batch_async function if there are URLs
         images_list = asyncio.run(process_batch_async(all_image_urls)) if all_image_urls else []
+
+        # Filter out False images and corresponding texts
+        valid_images = []
+        valid_texts = []
+        for image, text in zip(images_list, all_texts):
+            if image:  # Only include valid images and corresponding texts
+                valid_images.append(image)
+                valid_texts.append(text)
+
+        # Create a dictionary to store processed data
+        processed_dict = {'images': valid_images, 'text': valid_texts}
+
+        # Create kwargs for processor, including padding, truncation, etc.
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of,
+        }
+
+        # Merge processed inputs with kwargs and pass to the processor
+        processor_input = dict(processed_dict, **kwargs)
+
+        return self.processor(**processor_input)
+
+
+@add_end_docstrings(BASE_COLLATOR_DOCSTRING)
+@dataclass
+@registry.register_collator('ImageTarPathCollator')
+class ImageTarPathCollator(BaseCollator):
+    """
+    A collator class for processing dictionaries containing image URLs and text. The 'images' key in the input
+    dictionaries must hold image URLs, which are fetched asynchronously and converted into `PIL.Image` objects
+    in RGB format. The 'text' key must hold strings. The collator then combines the processed data with padding
+    and other configurations before passing it to the processor.
+    """
+
+    tar_directory: Optional[str] = None
+    metadata: Dict[str, Dict[str, str]] = None  # To hold the metadata dictionary
+
+    def __post_init__(self):
+        # Load metadata from tar files only once at initialization
+        if self.tar_directory is None:
+            raise ValueError
+        if self.metadata is None:
+            self.metadata = load_metadata_from_tar_files(self.tar_directory)
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        """
+        Processes a batch of input dictionaries containing image URLs and text. The 'images' key in each
+        dictionary is expected to hold a valid image URL. The images are fetched from tar files and converted
+        into `PIL.Image` objects in RGB format. The 'text' key must hold strings. The processed images and
+        text are then passed to the processor for further encoding.
+
+        Args:
+            inputs (List[Dict[str, Any]]):
+                A list of dictionaries where each dictionary contains an 'images' key that holds
+                a URL to an image and a 'text' key that holds a string.
+
+        Returns:
+            BatchEncoding:
+                A batch of encoded inputs, with padding, truncation, and other configurations ready
+                for model consumption.
+        """
+        # Check that all dictionaries contain only 'images' and 'text' as keys
+        allowed_keys = {'images', 'text'}
+        for input_dict in inputs:
+            if set(input_dict.keys()) != allowed_keys:
+                raise ValueError(f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
+
+        # Validate 'images' values and 'text' values
+        for input_dict in inputs:
+            if 'images' in input_dict:
+                if input_dict['images'] is None:
+                    logger.warning_once(
+                        "The 'images' key is None, which typically occurs when there is no corresponding image "
+                        "for the text (e.g., a negative text) or when multiple texts correspond to a single image. "
+                        "Please verify this scenario."
+                    )
+            if 'text' in input_dict and not isinstance(input_dict['text'], str):
+                raise TypeError(f"Expected a string for key 'text', but got: {type(input_dict['text'])}")
+
+        # Extract all non-None image URLs from inputs and corresponding texts
+        all_image_urls = []
+        all_texts = []
+        for d in inputs:
+            if d['images'] is not None:
+                all_image_urls.append(d['images'])
+                all_texts.append(d['text'])
+
+        # Fetch images corresponding to URLs
+        images_list = []
+        for url in all_image_urls:
+            if url in self.metadata:
+                tar_file = self.metadata[url]["tar_file"]
+                key = self.metadata[url]["key"]
+                image = load_image_from_tar(tar_file, key)
+                if image:
+                    images_list.append(image)
 
         # Filter out False images and corresponding texts
         valid_images = []
