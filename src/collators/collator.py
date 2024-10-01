@@ -159,22 +159,14 @@ class ImageURLCollator(BaseCollator):
 
     def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
         """
-        Processes a batch of input dictionaries containing image URLs and text. The 'images' key in each
-        dictionary is expected to hold a valid image URL. The images are fetched asynchronously and converted
-        into `PIL.Image` objects in RGB format. The 'text' key must hold strings. The processed images and
-        text are then passed to the processor for further encoding.
+        Processes a batch of input dictionaries containing image URLs and text.
+        The 'images' key in each dictionary is expected to hold a valid image URL.
+        The 'text' key must hold strings. The processed images and text are then passed to the processor.
 
         Args:
             inputs (List[Dict[str, Any]]):
                 A list of dictionaries where each dictionary contains an 'images' key that holds
                 a URL to an image and a 'text' key that holds a string.
-
-        Raises:
-            TypeError:
-                - If any value in the 'text' key is not a valid `str`.
-            ValueError:
-                - If any value in the 'images' key is not a valid URL.
-                - If any dictionary contains keys other than 'images' and 'text'.
 
         Returns:
             BatchEncoding:
@@ -182,33 +174,22 @@ class ImageURLCollator(BaseCollator):
                 for model consumption.
         """
 
-        # Check that all dictionaries contain only 'images' and 'text' as keys
-        allowed_keys = {'images', 'text'}
-        for input_dict in inputs:
-            if set(input_dict.keys()) != allowed_keys:
-                raise ValueError(f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
-
-        # Validate 'images' values and 'text' values
-        for input_dict in inputs:
-            if 'images' in input_dict:
-                if input_dict['images'] is None:
-                    logger.warning_once(
-                        "The 'images' key is None, which typically occurs when there is no corresponding image "
-                        "for the text (e.g., a negative text) or when multiple texts correspond to a single image. "
-                        "Please verify this scenario."
-                    )
-                elif not is_url(input_dict['images']):
-                    raise ValueError(f"Expected a valid URL for key 'images', but got: {input_dict['images']}")
-            if 'text' in input_dict and not isinstance(input_dict['text'], str):
-                raise TypeError(f"Expected a string for key 'text', but got: {type(input_dict['text'])}")
-
-        # Extract all non-None image URLs from inputs and corresponding texts
+        # Extract valid image URLs and texts
         all_image_urls = []
         all_texts = []
-        for d in inputs:
-            if d['images'] is not None:
-                all_image_urls.append(d['images'])
-                all_texts.append(d['text'])
+
+        for input_dict in inputs:
+            if 'images' in input_dict and 'text' in input_dict:
+                image_url = input_dict['images']
+                text = input_dict['text']
+
+                # Exclude invalid image URLs and texts
+                if image_url is not None and is_url(image_url) and isinstance(text, str):
+                    all_image_urls.append(image_url)
+                    all_texts.append(text)
+                else:
+                    # Log the exclusion if needed
+                    logger.warning_once(f"Excluding invalid data: images={image_url}, text={text}")
 
         # Fetch images using the process_batch_async function if there are URLs
         images_list = asyncio.run(process_batch_async(all_image_urls)) if all_image_urls else []
@@ -223,6 +204,7 @@ class ImageURLCollator(BaseCollator):
 
         # Create a dictionary to store processed data
         processed_dict = {'images': valid_images, 'text': valid_texts}
+        print(len(valid_images))
 
         # Create kwargs for processor, including padding, truncation, etc.
         kwargs = {

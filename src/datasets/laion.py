@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 
 from datasets import Dataset, IterableDataset, load_dataset
 
-from src import load_metadata_from_tar_files, download_images_with_img2dataset
+from src.utils import load_metadata_from_tar_files, download_images_with_img2dataset
 from src.common import registry
 from src.datasets.builder import SequenceTextDatasetFeaturesWithImageURLBuilder
 
@@ -56,6 +56,7 @@ class Laion400mDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
     split: Union[str, List[str]] = 'train'
     name: Optional[str] = 'laion'
     num_sample: Optional[int] = None
+    seed: Optional[int] = 2024
 
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(
@@ -79,8 +80,8 @@ class Laion400mTarPathDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuil
     split: Union[str, List[str]] = 'train'
     name: Optional[str] = 'laion'
     num_sample: Optional[int] = None
-    output_dir: str = "laion400m_images"  # Directory to save downloaded images
-    output_format: str = "files"  # Default to 'files'
+    output_dir: Optional[str] = None
+    output_format: str = "webdataset"  # Default to 'files'
 
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(
@@ -91,12 +92,13 @@ class Laion400mTarPathDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuil
 
         # Sample from dataset if num_sample is specified
         if self.num_sample is not None:
+            random.seed(self.seed)
             random_indices = random.sample(range(len(dataset)), self.num_sample)
             dataset = dataset.select(random_indices)
 
         # Extract URLs for downloading images
         print('url loading')
-        image_urls = dataset.column("images")
+        image_urls = dataset["images"]
 
         # Download images using img2dataset
         download_images_with_img2dataset(image_urls, self.output_dir, self.output_format)

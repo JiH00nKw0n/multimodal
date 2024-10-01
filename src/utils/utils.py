@@ -57,7 +57,7 @@ def download_images_with_img2dataset(urls: List[str], output_folder: str, output
     url_list_file = os.path.join(output_folder, "url_list.txt")
     with open(url_list_file, 'w') as f:
         for url in urls:
-            f.write(url + '\n')
+            f.write(f'"{url}"' + '\n')
 
     # Use img2dataset to download images in the specified format
     img2dataset_download(
@@ -82,9 +82,12 @@ def extract_metadata_from_tar(tar_file_path: str) -> Dict[str, Dict[str, str]]:
         Dict: A dictionary where keys are URLs and values are dictionaries containing 'tar_file' and 'key'.
     """
     metadata_dict = {}
-    dataset = wds.WebDataset(tar_file_path).to_tuple("json")
+    # Define a WebDataset pipeline that only processes metadata (JSON files)
+    dataset = wds.WebDataset(tar_file_path, shardshuffle=False).to_tuple("json")
 
-    for _, metadata in dataset:
+    # Define a function to handle just the metadata
+    for (metadata,) in dataset:
+        metadata = json.loads(metadata)  # Decode JSON
         url = metadata.get("url")
         key = metadata.get("key")
         if url and key:
@@ -126,7 +129,7 @@ def load_image_from_tar(tar_file_path: str, key: str) -> Union[Image.Image | Non
     Returns:
         Image.Image: The loaded PIL image.
     """
-    dataset = wds.WebDataset(tar_file_path).decode("pil").to_tuple("jpg", "json")
+    dataset = wds.WebDataset(tar_file_path, shardshuffle=False).decode("pil").to_tuple("jpg", "json")
 
     # Search for the image corresponding to the key
     for image, metadata in dataset:
@@ -155,7 +158,7 @@ def process_batch(urls: List[str], size=(256, 256)) -> List[Any]:
     max_workers = min(len(urls), os.cpu_count() * 2)  # 스레드 수 최적화
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         images = list(executor.map(lambda url: load_and_resize_image(url, size), urls))
-    return [img for img in images if img is not None]  # None 값 제거
+    return images
 
 
 # 비동기 URL에서 이미지 바이트 다운로드
@@ -192,7 +195,7 @@ async def process_batch_async(urls: List[str], size=(256, 256)) -> List[Any]:
             images = list(
                 executor.map(lambda image_bytes: process_and_resize_image(image_bytes, size), image_bytes_results))
 
-    return [img for img in images if img is not None]  # None 값 제거
+    return images
 
 
 def _get_vector_norm(tensor: torch.Tensor) -> torch.Tensor:

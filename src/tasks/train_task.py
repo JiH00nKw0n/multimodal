@@ -56,12 +56,12 @@ class SingleTrainTask(BaseTrainTask):
 
         assert collator_cls is not None, "Collator {} not properly registered.".format(collator_cls)
 
+        train_dataset = self.build_datasets()
+
         collator = collator_cls(
             processor=self.build_processor(),
             **self.config.collator_config.config,
         )
-
-        train_dataset = self.build_datasets()
 
         return trainer_cls(
             model=self.build_model(),

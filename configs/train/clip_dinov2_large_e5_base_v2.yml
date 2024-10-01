@@ -4,7 +4,7 @@ run:
   seed: 2024
 
 collator: 
-  collator_cls: 'NegCLIPWithImageURLCollator'
+  collator_cls: 'ImageURLCollator'
   config:
     max_length: 64
 
@@ -29,17 +29,17 @@ dataset:
     num_sample: 2000000
 
 trainer:
-  output_dir: '/mnt/elice/multimodal/_output/dinov2_large_e5_base_v2'
+  output_dir: '/mnt/working/_output/abcd'
   learning_rate: &learning_rate 1.0e-4
   lr_scheduler_type: 'cosine'
-  warmup_steps: &warmup_steps 1000
+  warmup_steps: &warmup_steps 100
   weight_decay: &weight_decay 1.0e-1
-  save_steps: 200
+  save_steps: 500
   logging_steps : 1
   eval_strategy: 'no' # 'steps', 'epochs', 'no'
 
   num_train_epochs: 2
-  per_device_train_batch_size : &per_device_batch_size 512
+  per_device_train_batch_size : &per_device_batch_size 256
   gradient_accumulation_steps: &gradient_accumulation 1
   # For memory efficiency.
   gradient_checkpointing : True

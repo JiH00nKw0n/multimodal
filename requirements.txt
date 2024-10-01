@@ -43,9 +43,9 @@ pillow==10.4.0
 platformdirs==4.2.2
 polars==1.4.1
 portalocker==2.10.1
-protobuf>=5.27.3
+protobuf>=3.19.0
 psutil==6.0.0
-pyarrow==17.0.0
+pyarrow>=15.0.0
 pyarrow-hotfix==0.6
 pycocotools==2.0.8
 pydantic==2.8.2
