@@ -18,7 +18,6 @@ from src.datasets.builder import TextDatasetFeaturesWithImageBuilder
 from .utils import swap_spans
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.FileHandler(f'./logging/{__name__}.log', 'w'))
 
 __all__ = [
     "ConceptualCaptionsIterableDatasetBuilder",
