@@ -1,3 +1,4 @@
+import random
 from typing import List, Optional, Union
 
 from datasets import Dataset, IterableDataset, load_dataset
@@ -52,6 +53,7 @@ class Laion400mDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
     """
     split: Union[str, List[str]] = 'train'
     name: Optional[str] = 'laion'
+    num_sample: Optional[int] = None
 
     def build_dataset(self) -> Dataset:
         dataset = load_dataset(
@@ -59,4 +61,8 @@ class Laion400mDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
         )
         dataset = dataset.rename_columns({"caption": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
+        if self.num_sample is not None:
+            random_indices = random.sample(range(len(dataset)), self.num_sample)
+            dataset = dataset.select(random_indices)
+
         return dataset

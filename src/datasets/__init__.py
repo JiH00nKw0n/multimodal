@@ -36,7 +36,7 @@ from src.datasets.flickr30k import Flickr30kDatasetBuilder
 from src.datasets.sugarcrepe import SUGARCREPEDatasetBuilder
 from src.datasets.svo import SVODatasetBuilder
 from src.datasets.winoground import WinogroundDatasetBuilder
-from src.datasets.laion400m import (
+from src.datasets.laion import (
     Laion400mIterableDatasetBuilder, Laion400mDatasetBuilder
 )
 
