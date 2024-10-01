@@ -5,6 +5,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoProcessor
 from datasets import Dataset
 from src.utils.utils import process_batch
+from glob import glob
 
 
 class ImageSimilarityCalculator:
@@ -61,6 +62,10 @@ class ImageSimilarityCalculator:
         self.model = AutoModel.from_pretrained(self.similarity_model_name_or_path).to(self.device)
         self.processor = AutoProcessor.from_pretrained(self.similarity_model_name_or_path)
 
+        # NOTE: Add for caching
+        self.emb_dir = f'{os.getenv("DATA_ROOT_DIR")}/{os.getenv("TARGET_DATASET")}/embeddings'
+
+
     def compute_image_similarity(
         self,
         dataset: Dataset,
@@ -79,40 +84,68 @@ class ImageSimilarityCalculator:
             `Dict[int, List[int]]`:
                 A dictionary where keys are image indices and values are lists of top-k most similar image indices.
         """
+        cache_list = list(map(lambda x: x.split('/')[-1], glob(f'{self.emb_dir}/*.pt')))
+
         all_embeddings = []
         for start_index in tqdm(
             range(0, len(dataset), self.batch_size),
             desc=f"Encoding {self.batch_size} batches",
             disable=not show_progress_bar
         ):
-            url_list = dataset[start_index: start_index + self.batch_size]['images']
-            batch_images = process_batch(url_list)
+            cache_fname =f'bs_{start_index}.pt'
 
-            inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
+            if cache_fname in cache_list:
+                embeddings = torch.load(embeddings, f'{self.emb_dir}/{cache_fname}')
+            else:
+                url_list = dataset[start_index: start_index + self.batch_size]['images']
+                batch_images = process_batch(url_list)
 
-            # Compute image embeddings
-            with torch.no_grad():
-                embeddings = self.model.get_image_features(**inputs)
-                embeddings = embeddings / embeddings.norm(dim=1, keepdim=True)
+                inputs = self.processor(images=batch_images, return_tensors="pt").to(self.device)
 
-            all_embeddings.append(embeddings)
+                # Compute image embeddings
+                with torch.no_grad():
+                    embeddings = self.model.get_image_features(**inputs)
+                    embeddings = embeddings / embeddings.norm(dim=1, keepdim=True)
+                
+                torch.save(embeddings, f'{self.emb_dir}/{cache_fname}')
+            
+            all_embeddings.append(embeddings.cpu())
 
         # Concatenate all embeddings and move to CPU
-        all_embeddings = torch.cat(all_embeddings, dim=0).cpu()
+        all_embeddings = torch.cat(all_embeddings, dim=0)
 
         # Compute cosine similarity
         torch.cuda.empty_cache()
-        with torch.no_grad():
-            similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T)
+        similarity_dict = {}
+        for start_index in tqdm(
+                range(0, len(dataset), self.batch_size), desc=f"Mining {self.batch_size} batches"):
+            emb = all_embeddings[start_index: start_index + self.batch_size]                
+            with torch.no_grad():
+                similarity_matrix = torch.matmul(emb, all_embeddings.T)
+            
+            # TODO; not working for batched similarity matrix computation
+            diag_indices = torch.arange(similarity_matrix.size(0))
+            similarity_matrix[diag_indices, diag_indices] = -float('inf')
 
-        # Set self-similarity to negative infinity to exclude
-        diag_indices = torch.arange(similarity_matrix.size(0))
-        similarity_matrix[diag_indices, diag_indices] = -float('inf')
+            # Manually retrieve one more and remove it, which is identical to itself.
+            # top_k 유사한 이미지 인덱스를 추출
+            top_k_indices = torch.topk(similarity_matrix, self.top_k+1, dim=1, largest=True).indices
 
-        # Extract top-k similar images for each image
-        top_k_indices = torch.topk(similarity_matrix, self.top_k, dim=1, largest=True).indices
+            # 결과를 딕셔너리 형태로 변환
+            for idx in range(similarity_matrix.size(0)):
+                similarity_dict[start_index + idx] = top_k_indices[idx].tolist()[1:]
 
-        # Convert to dictionary format
-        similarity_dict = {idx: top_k_indices[idx].tolist() for idx in range(similarity_matrix.size(0))}
+        # with torch.no_grad():
+        #     similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T)
+
+        # # Set self-similarity to negative infinity to exclude
+        # diag_indices = torch.arange(similarity_matrix.size(0))
+        # similarity_matrix[diag_indices, diag_indices] = -float('inf')
+
+        # # Extract top-k similar images for each image
+        # top_k_indices = torch.topk(similarity_matrix, self.top_k, dim=1, largest=True).indices
+
+        # # Convert to dictionary format
+        # similarity_dict = {idx: top_k_indices[idx].tolist() for idx in range(similarity_matrix.size(0))}
 
         return similarity_dict

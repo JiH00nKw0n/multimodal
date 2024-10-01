@@ -1,10 +1,12 @@
 run:
-  task: 'DatasetPretrainedModelTrainTask'
-  runner: 'NegCLIPTrainer'
-  collator: 'SequenceTextWithHNCollator'
+  task: 'DatasetTrainTaskWithPretrainedModel'
+  runner: 'NegCLIPRandomSamplerTrainer'
   seed: 2024
   max_seq_length: 64
 
+
+collator: 
+  collator : 'ImageCollator'
 
 model:
   model_cls: 'CLIPModel'
@@ -20,9 +22,11 @@ processor:
     pretrained_model_name_or_path: 'openai/clip-vit-base-patch32'
 
 dataset:
-  COCOCaptionsWithMinedHNDatasetBuilder:
+  # COCOCaptionsWithMinedHNDatasetBuilder:
+  #   split: 'train'
+  #   cache_file_name : negclip
+  ConceptualCaptionsDatasetBuilder:
     split: 'train'
-    cache_file_name : negclip
 
 trainer:
   # NOTE : Fix hard coded directory
