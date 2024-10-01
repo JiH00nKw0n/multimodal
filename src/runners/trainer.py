@@ -48,6 +48,28 @@ class RandomSamplerTrainer(BaseTrainer):
         else:
             return RandomSampler(self.train_dataset)
 
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        Computes the loss for the current batch of inputs using the negative CLIP loss function.
+
+        Args:
+            model: The model to be used for generating the logits.
+            inputs: A dictionary of inputs that includes features such as images and captions.
+            return_outputs (`bool`, *optional*, defaults to `False`): If `True`, returns both the loss and the model outputs.
+
+        Returns:
+            `torch.Tensor` or `Tuple[torch.Tensor, Any]`: If `return_outputs` is `True`, returns a tuple of (loss, outputs).
+            Otherwise, returns only the loss.
+        """
+        inputs = dict(inputs, **{
+            'return_dict': True,
+            'return_loss': True,
+        })
+        outputs = model(**inputs)
+        loss = outputs.loss
+
+        return (loss, outputs) if return_outputs else loss
+
 
 @registry.register_trainer('NegCLIPRandomSamplerTrainer')
 class NegCLIPRandomSamplerTrainer(RandomSamplerTrainer):
