@@ -1,4 +1,3 @@
-from transformers.utils import logging
 import asyncio
 from dataclasses import dataclass
 from typing import Union, List, Dict, Optional, Any
@@ -8,6 +7,7 @@ import numpy as np
 from PIL import Image
 from transformers import BatchEncoding
 from transformers.utils import add_end_docstrings
+from transformers.utils import logging
 
 from src.common.registry import registry
 from src.utils.utils import process_batch_async, load_metadata_from_tar_files, load_image_from_tar
@@ -18,6 +18,7 @@ logger = logging.get_logger(__name__)
 __all__ = [
     "ImageCollator",
     "ImageURLCollator",
+    "ImageURLCollatorForEvaluation",
     "NegCLIPWithImageURLCollator"
 ]
 
@@ -222,6 +223,78 @@ class ImageURLCollator(BaseCollator):
 
 @add_end_docstrings(BASE_COLLATOR_DOCSTRING)
 @dataclass
+@registry.register_collator('ImageURLCollatorForEvaluation')
+class ImageURLCollatorForEvaluation(BaseCollator):
+    """
+    A collator class for processing dictionaries containing image URLs and text. The 'images' key in the input
+    dictionaries must hold image URLs, which are fetched asynchronously and converted into `PIL.Image` objects
+    in RGB format. The 'text' key must hold strings. The collator then combines the processed data with padding
+    and other configurations before passing it to the processor.
+
+    This version of the collator does not filter out any invalid URLs or texts but processes all lines.
+
+    Raises:
+        TypeError:
+            - If the 'text' key contains values that are not `str` instances.
+        ValueError:
+            - If the 'images' key contains values that are not valid URLs.
+    """
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        """
+        Processes a batch of input dictionaries containing image URLs and text.
+        The 'images' key in each dictionary is expected to hold a valid image URL.
+        The 'text' key must hold strings. The processed images and text are then passed to the processor.
+
+        Args:
+            inputs (List[Dict[str, Any]]):
+                A list of dictionaries where each dictionary contains an 'images' key that holds
+                a URL to an image and a 'text' key that holds a string.
+
+        Returns:
+            BatchEncoding:
+                A batch of encoded inputs, with padding, truncation, and other configurations ready
+                for model consumption.
+        """
+
+        # Initialize lists for image URLs and text data
+        all_image_urls = []
+        all_texts = []
+
+        # Loop over each input dict, add image URL and text (even if URL is None)
+        for input_dict in inputs:
+            if 'images' in input_dict and 'text' in input_dict:
+                image_url = input_dict['images']
+                text = input_dict['text']
+
+                # Append image URLs to the list (even if they are None)
+                if image_url is not None:
+                    all_image_urls.append(image_url)
+                all_texts.append(text)
+
+        # Fetch images using the process_batch_async function if there are URLs
+        images_list = asyncio.run(process_batch_async(all_image_urls)) if all_image_urls else []
+        if len(all_image_urls) != len(images_list):
+            logger.warning("Some images are not included in images list. This will result in inaccurate result.")
+        # No filtering based on image validity, maintain order as per inputs
+        processed_dict = {'images': images_list, 'text': all_texts}
+
+        # Create kwargs for processor, including padding, truncation, etc.
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of,
+        }
+
+        # Merge processed inputs with kwargs and pass to the processor
+        processor_input = dict(processed_dict, **kwargs)
+
+        return self.processor(**processor_input)
+
+
+@add_end_docstrings(BASE_COLLATOR_DOCSTRING)
+@dataclass
 @registry.register_collator('ImageTarPathCollator')
 class ImageTarPathCollator(BaseCollator):
     """
@@ -262,7 +335,8 @@ class ImageTarPathCollator(BaseCollator):
         allowed_keys = {'images', 'text'}
         for input_dict in inputs:
             if set(input_dict.keys()) != allowed_keys:
-                raise ValueError(f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
+                raise ValueError(
+                    f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
 
         # Validate 'images' values and 'text' values
         for input_dict in inputs:

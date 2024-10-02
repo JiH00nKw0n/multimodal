@@ -2,7 +2,8 @@ from src.collators.base import BaseCollator
 from src.collators.collator import (
     NegCLIPWithImageURLCollator,
     ImageCollator,
-    ImageURLCollator
+    ImageURLCollator,
+    ImageURLCollatorForEvaluation
 )
 
 __all__ = [
@@ -10,4 +11,5 @@ __all__ = [
     "NegCLIPWithImageURLCollator",
     "ImageCollator",
     "ImageURLCollator",
+    "ImageURLCollatorForEvaluation"
 ]
