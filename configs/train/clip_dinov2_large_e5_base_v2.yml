@@ -15,6 +15,7 @@ model:
     text_pretrained_model_name_or_path: &text_pretrained_model_name_or_path 'intfloat/e5-base-v2'
     vision_pretrained_model_name_or_path: &vision_pretrained_model_name_or_path 'facebook/dinov2-large'
     pool_type: 'avg'
+    projection_dim: 768
   lora:
 
 processor:
