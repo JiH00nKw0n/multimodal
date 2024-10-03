@@ -21,16 +21,16 @@ dataset:
       split: 'test'
   - COCOCaptionsDatasetBuilder:
       split: 'test'
-  - ARODatasetBuilder:
-      split: 'train'
+#  - ARODatasetBuilder:
+#      split: 'train'
   - CREPEDatasetBuilder:
       split: 'train'
   - SUGARCREPEDatasetBuilder:
       split: 'train'
-  - SVODatasetBuilder:
-      split: 'train'
-  - WinogroundDatasetBuilder:
-      split: 'test'
+#  - SVODatasetBuilder:
+#      split: 'train'
+#  - WinogroundDatasetBuilder:
+#      split: 'test'
 
 evaluator:
   - RetrievalEvaluator:
@@ -45,7 +45,7 @@ evaluator:
       output_dir: *output_dir
   - RetrievalEvaluator:
       collator:
-        collator_cls: 'ImageURLCollator'
+        collator_cls: 'ImageURLCollatorForEvaluation'
         config:
           max_length: *max_length
       k_values:
@@ -53,12 +53,12 @@ evaluator:
         - 5
         - 10
       output_dir: *output_dir
-  - AROEvaluator:
-      collator:
-        collator_cls: 'ImageCollator'
-        config:
-          max_length: *max_length
-      output_dir: *output_dir
+#  - AROEvaluator:
+#      collator:
+#        collator_cls: 'ImageCollator'
+#        config:
+#          max_length: *max_length
+#      output_dir: *output_dir
   - CrepeEvaluator:
       collator:
         collator_cls: 'ImageCollator'
@@ -71,15 +71,15 @@ evaluator:
         config:
           max_length: *max_length
       output_dir: *output_dir
-  - SVOEvaluator:
-      collator:
-        collator_cls: 'ImageCollator'
-        config:
-          max_length: *max_length
-      output_dir: *output_dir
-  - WinogroundEvaluator:
-      collator:
-        collator_cls: 'ImageCollator'
-        config:
-          max_length: *max_length
-      output_dir: *output_dir
+#  - SVOEvaluator:
+#      collator:
+#        collator_cls: 'ImageCollator'
+#        config:
+#          max_length: *max_length
+#      output_dir: *output_dir
+#  - WinogroundEvaluator:
+#      collator:
+#        collator_cls: 'ImageCollator'
+#        config:
+#          max_length: *max_length
+#      output_dir: *output_dir

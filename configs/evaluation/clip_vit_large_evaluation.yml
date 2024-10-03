@@ -42,7 +42,7 @@ evaluator:
       output_dir: *output_dir
   - RetrievalEvaluator:
       collator:
-        collator_cls: 'ImageURLCollator'
+        collator_cls: 'ImageURLCollatorForEvaluation'
         config:
           max_length: *max_length
       k_values:
