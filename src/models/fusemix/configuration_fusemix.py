@@ -27,8 +27,6 @@ class FuseMixConfig(PretrainedConfig):
             expansion_factor: Optional[int] = 4,
             **kwargs
     ):
-        if kwargs.get('torch_dtype') == 'fp16':
-            kwargs['torch_dtype'] = torch.float16
 
         text_config = kwargs.pop('text_config', None)
         vision_config = kwargs.pop('vision_config', None)

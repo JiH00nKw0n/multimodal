@@ -30,8 +30,6 @@ class CLIPBertConfig(PretrainedConfig):
             logit_scale_init_value: Optional[float] = 2.6592,
             **kwargs
     ):
-        if kwargs.get('torch_dtype') == 'fp16':
-            kwargs['torch_dtype'] = torch.float16
 
         text_config = kwargs.pop('text_config', None)
         vision_config = kwargs.pop('vision_config', None)
