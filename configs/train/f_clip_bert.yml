@@ -52,10 +52,6 @@ trainer:
     use_reentrant: False
   ddp_find_unused_parameters: True
 
-  fp16: &fp16 True # use torch.float16
-  fp16_opt_level : '01'
-  bf16: &bf16 False # Use torch.bfloat16
-
   group_by_length : False # Whether to order the sample by token length.
   use_cpu : False
   remove_unused_columns : False
