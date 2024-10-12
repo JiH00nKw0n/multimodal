@@ -3,11 +3,11 @@ from typing import Optional
 from datasets import load_dataset, Dataset
 
 from src.common import registry
-from src.datasets.builder import HardSequenceTextDatasetWithImageBuilder
+from src.datasets.base import BaseBuilder
 
 
 @registry.register_builder('SUGARCREPEDatasetBuilder')
-class SUGARCREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
+class SUGARCREPEDatasetBuilder(BaseBuilder):
     """
     A builder class for creating the SUGARCREPE dataset.
     It extends `HardSequenceTextDatasetWithImageBuilder` to provide a structure for loading the SUGARCREPE dataset.
@@ -32,6 +32,5 @@ class SUGARCREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
         dataset = dataset.map(
             lambda x: {'text': [x['text']]}
         )
-        # dataset = dataset.cast(self.features)
 
         return dataset

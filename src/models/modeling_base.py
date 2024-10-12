@@ -17,7 +17,6 @@ logger = logging.get_logger(__name__)
 
 __all__ = [
     "BaseModel", "BaseOutput", "BasePreTrainedModel",
-    "BaseModelWithFrozenText", "BaseModelWithFrozenImage", "BaseModelWithFrozenImageText",
     "BASE_TEXT_INPUTS_DOCSTRING", "BASE_VISION_INPUTS_DOCSTRING", "BASE_INPUTS_DOCSTRING",
     "base_loss",
 ]
@@ -48,7 +47,7 @@ def base_loss(similarity: torch.Tensor) -> torch.Tensor:
 class BaseOutput(ModelOutput):
     """
     Args:
-        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `return_loss` is `True`):
+        loss (`torch.FloatTensor` of shape `(1, )`, *optional*, returned when `return_loss` is `True`):
             Contrastive loss for image-text similarity.
         logits_per_image:(`torch.FloatTensor` of shape `(image_batch_size, text_batch_size)`):
             The scaled dot product scores between `image_embeds` and `text_embeds`. This represents the image-text
@@ -423,46 +422,3 @@ class BaseModel(BasePreTrainedModel):
             text_model_output=text_outputs,
             vision_model_output=vision_outputs,
         )
-
-
-@registry.register_model("BaseModelWithFrozenText")
-@add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenText(BaseModel):
-    config_class = BaseConfig
-
-    def __init__(self, config: BaseConfig):
-        super().__init__(config)
-
-        # Lock the text Model
-        for param in self.text_model.parameters():
-            param.requires_grad = False
-
-
-@registry.register_model("BaseModelWithFrozenImage")
-@add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenImage(BaseModel):
-    config_class = BaseConfig
-
-    def __init__(self, config: BaseConfig):
-        super().__init__(config)
-
-        # Lock the image Model
-        for param in self.vision_model.parameters():
-            param.requires_grad = False
-
-
-@registry.register_model("BaseModelWithFrozenImageText")
-@add_start_docstrings(BASE_START_DOCSTRING)
-class BaseModelWithFrozenImageText(BaseModel):
-    config_class = BaseConfig
-
-    def __init__(self, config: BaseConfig):
-        super().__init__(config)
-
-        # Lock the image Model
-        for param in self.vision_model.parameters():
-            param.requires_grad = False
-
-        # Lock the text Model
-        for param in self.text_model.parameters():
-            param.requires_grad = False

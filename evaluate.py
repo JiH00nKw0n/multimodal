@@ -37,13 +37,13 @@ def setup_seeds(seed: int) -> None:
 
 
 def main() -> None:
-    # set before init_distributed_mode() to ensure the same job_id shared across all ranks.
     job_id = now()
 
-    args = parse_args()
+    setup_logger()
 
-    # 파일 핸들러 생성
-    file_handler = logging.FileHandler(f'/{os.getenv("LOG_DIR")}/clip_{job_id}.log/')
+    args = parse_args()
+    file_name = args.cfg_path.split('/')[-1].replace('.yml', '')
+    file_handler = logging.FileHandler(f'{os.getenv("LOG_DIR")}/{file_name}_{job_id}.log/')
     file_handler.setLevel(logging.DEBUG)
 
     # 로그 메시지 포맷 설정

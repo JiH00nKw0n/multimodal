@@ -3,11 +3,11 @@ from typing import Optional
 from datasets import load_dataset, DatasetDict
 
 from src.common import registry
-from src.datasets.builder import HardSequenceTextDatasetWithImageBuilder
+from src.datasets.base import BaseBuilder
 
 
 @registry.register_builder('ARODatasetBuilder')
-class ARODatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
+class ARODatasetBuilder(BaseBuilder):
     """
     A builder class for creating the ARO (Attribute, Relation, and Order) dataset.
     It extends `HardSequenceTextDatasetWithImageBuilder` and combines multiple datasets related to attributes, relations,

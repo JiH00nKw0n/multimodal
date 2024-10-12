@@ -5,53 +5,23 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import numpy as np
 import spacy
 import torch
-from datasets import concatenate_datasets, Dataset, IterableDataset, load_dataset
+from datasets import concatenate_datasets, Dataset, load_dataset
 from spacy.tokens import Doc, Span, Token
 from tqdm import tqdm
 
 from src.common import registry, ImageSimilarityCalculator
-from src.datasets.builder import (
-    SequenceTextDatasetFeaturesWithImageURLBuilder,
-    NegCLIPSequenceTextDatasetFeaturesWithImageURLBuilder
+from src.datasets.base import (
+    BaseBuilder
 )
 
 __all__ = [
-    "COCOCaptionsIterableDatasetBuilder",
     "COCOCaptionsDatasetBuilder",
     "COCOCaptionsDatasetBuilderWithMinedNegCLIP",
     "COCOCaptionsDatasetBuilderWithNegCLIPMining",
 ]
 
-
-@registry.register_builder('COCOCaptionsIterableDatasetBuilder')
-class COCOCaptionsIterableDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
-    """
-    A builder class for creating an iterable dataset for COCO captions.
-    It extends `SequenceTextDatasetFeaturesWithImageURL`.
-
-    Attributes:
-        split (str): The dataset split to load (e.g., 'train').
-        name (Optional[str]): The name of the dataset.
-    """
-    split: str = 'train'
-    name: Optional[str] = 'coco'
-
-    def build_dataset(self) -> IterableDataset:
-        """
-        This method should implement the logic for building the dataset.
-        Since it's not implemented here, it raises `NotImplementedError`.
-
-        Returns:
-            IterableDataset: The built dataset.
-
-        Raises:
-            NotImplementedError: If the method is not implemented.
-        """
-        raise NotImplementedError
-
-
 @registry.register_builder('COCOCaptionsDatasetBuilder')
-class COCOCaptionsDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder):
+class COCOCaptionsDatasetBuilder(BaseBuilder):
     """
     A builder class for creating a dataset for COCO captions with non-iterable format.
     It extends `SequenceTextDatasetFeaturesWithImageURL`.
@@ -80,13 +50,12 @@ class COCOCaptionsDatasetBuilder(SequenceTextDatasetFeaturesWithImageURLBuilder)
             )
         dataset = dataset.rename_columns({"sentences": 'text', "url": 'images'})
         dataset = dataset.select_columns(['images', 'text'])
-        # dataset = dataset.cast(self.features)
 
         return dataset
 
 
 @registry.register_builder('COCOCaptionsDatasetBuilderWithMinedNegCLIP')
-class COCOCaptionsDatasetBuilderWithMinedNegCLIP(NegCLIPSequenceTextDatasetFeaturesWithImageURLBuilder):
+class COCOCaptionsDatasetBuilderWithMinedNegCLIP(BaseBuilder):
     """
     A builder class for creating a COCO captions dataset with mined negative samples for NegCLIP.
     It extends `NegCLIPSequenceTextDatasetFeaturesWithImageURL`.
@@ -108,7 +77,6 @@ class COCOCaptionsDatasetBuilderWithMinedNegCLIP(NegCLIPSequenceTextDatasetFeatu
         dataset = load_dataset(
             "yjkimstats/COCOCaption_mined", trust_remote_code=True, split=self.split
         )
-        # dataset = dataset.cast(self.features)
 
         return dataset
 
@@ -202,7 +170,7 @@ def process_example(example: Dict, nlp: spacy.Language, generate_negative_captio
 
 
 @registry.register_builder('COCOCaptionsDatasetBuilderWithNegCLIPMining')
-class COCOCaptionsDatasetBuilderWithNegCLIPMining(NegCLIPSequenceTextDatasetFeaturesWithImageURLBuilder):
+class COCOCaptionsDatasetBuilderWithNegCLIPMining(BaseBuilder):
     """
     A builder class for creating a COCO captions dataset with NegCLIP and mined negative samples.
     It extends `NegCLIPSequenceTextDatasetFeaturesWithImageURL`.
@@ -265,9 +233,6 @@ class COCOCaptionsDatasetBuilderWithNegCLIPMining(NegCLIPSequenceTextDatasetFeat
             # Perform image and text mining
             dataset = self.negative_image_mining(dataset)
             dataset = self.negative_text_mining(dataset)
-
-            # Cast to required features
-            dataset = dataset.cast(self.features)
 
         return dataset
 

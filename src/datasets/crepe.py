@@ -3,11 +3,11 @@ from typing import Optional
 from datasets import load_dataset, Dataset
 
 from src.common import registry
-from src.datasets.builder import HardSequenceTextDatasetWithImageBuilder
+from src.datasets.base import BaseBuilder
 
 
 @registry.register_builder('CREPEDatasetBuilder')
-class CREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
+class CREPEDatasetBuilder(BaseBuilder):
     split: Optional[str] = 'train'
     name: Optional[str] = 'crepe'
 
@@ -18,6 +18,5 @@ class CREPEDatasetBuilder(HardSequenceTextDatasetWithImageBuilder):
         dataset = dataset.map(
             lambda x: {'text': [x['text']]}
         )
-        # dataset.cast(self.features)
 
         return dataset
