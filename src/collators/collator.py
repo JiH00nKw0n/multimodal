@@ -4,7 +4,9 @@ from typing import Union, List, Dict, Optional, Any
 from urllib.parse import urlparse
 
 import numpy as np
+import torch
 from PIL import Image
+from torch import Tensor
 from transformers import BatchEncoding
 from transformers.utils import add_end_docstrings
 from transformers.utils import logging
@@ -17,6 +19,7 @@ logger = logging.get_logger(__name__)
 
 __all__ = [
     "ImageCollator",
+    "ImageCollatorForInstructor",
     "ImageURLCollator",
     "ImageURLCollatorForEvaluation",
     "NegCLIPWithImageURLCollator"
@@ -138,6 +141,147 @@ class ImageCollator(BaseCollator):
         processor_input = dict(processed_dict, **kwargs)
 
         return self.processor(**processor_input)
+
+
+@add_end_docstrings(BASE_COLLATOR_DOCSTRING)
+@dataclass
+@registry.register_collator('ImageCollatorForInstructor')
+class ImageCollatorForInstructor(BaseCollator):
+    """
+    A collator class for processing dictionaries containing image and text data. The 'images' key in the input
+    dictionaries must hold `PIL.Image` objects, which are converted to RGB format, and the 'text' key must hold
+    strings. This class handles dynamic padding, truncation, and tensor conversion before passing the processed
+    data to the processor.
+
+    Raises:
+        TypeError:
+            - If the 'images' key contains objects that are not `PIL.Image` instances.
+            - If the 'text' key contains values that are not `str` instances.
+        ValueError:
+            - If the input dictionaries contain keys other than 'images' and 'text'.
+    """
+
+    def __call__(self, inputs: List[Dict[str, Any]]) -> BatchEncoding:
+        """
+        Processes a batch of input dictionaries containing image and text data. The 'images' key in each
+        dictionary is expected to hold a `PIL.Image` object, which is converted to RGB format. The 'text'
+        key must hold strings. The processed images and text are then passed to the processor for further encoding.
+
+        Args:
+            inputs (List[Dict[str, Any]]):
+                A list of dictionaries where each dictionary contains an 'images' key that holds
+                a `PIL.Image` object and a 'text' key that holds a string.
+
+        Raises:
+            TypeError:
+                - If any value in the 'images' key is not a valid `PIL.Image` object.
+                - If any value in the 'text' key is not a string.
+            ValueError:
+                - If any dictionary contains keys other than 'images' and 'text'.
+
+        Returns:
+            BatchEncoding:
+                A batch of encoded inputs, with padding, truncation, and other configurations ready
+                for model consumption.
+        """
+        instruction = 'Represent the caption for retrieving matching images: '
+
+        def _check_type_and_convert_image(value: Any, key: str) -> Union[Image.Image, Any]:
+            """
+            Ensures the type of the value matches the expected type for the given key.
+
+            Args:
+                value (Any): The value to check and possibly convert.
+                key (str): The key corresponding to the value (either 'images' or 'text').
+
+            Returns:
+                `PIL.Image`: If the key is 'images', returns the image converted to RGB.
+                `str`: If the key is 'text', returns the string as-is.
+
+            Raises:
+                TypeError: If the value does not match the expected type for the given key.
+            """
+            if key == 'images':
+                if value is None:
+                    logger.warning_once(
+                        "The 'image' key is None, which typically occurs when there is no corresponding image "
+                        "for the text (e.g., a negative text) or when multiple texts correspond to a single image. "
+                        "Please verify this scenario."
+                    )
+                    return None
+                elif not isinstance(value, Image.Image):
+                    raise TypeError(f"Expected `PIL.Image.Image` but got {type(value)} for key 'images'")
+                return value.convert("RGB")
+            elif key == 'text':
+                if not isinstance(value, str):
+                    raise TypeError(f"Expected `str` but got {type(value)} for key 'text'")
+                return instruction + value
+            return value
+
+        # Check that all dictionaries contain only 'images' and 'text' as keys
+        allowed_keys = {'images', 'text'}
+        for input_dict in inputs:
+            if set(input_dict.keys()) != allowed_keys:
+                raise ValueError(
+                    f"Input dictionaries must only contain the keys 'images' and 'text'. Found: {input_dict.keys()}")
+
+        # Process 'images' and 'text', performing type checks and conversions
+        processed_dict = {
+            key: [
+                _check_type_and_convert_image(value, key) for value in [d[key] for d in inputs if d[key] is not None]
+            ]
+            for key in inputs[0].keys()
+        }
+        len_text = len(processed_dict['text'])
+        # Create kwargs for processor, including padding, truncation, etc.
+        kwargs = {
+            'return_tensors': self.return_tensors,
+            'padding': self.padding,
+            'truncation': self.truncation,
+            'pad_to_multiple_of': self.pad_to_multiple_of,
+        }
+        instruct_input = dict({'text': [instruction] * len_text}, **kwargs)
+        processor_input = dict(processed_dict, **kwargs)
+
+        output = self.processor(**processor_input)
+
+        attention_mask_shape = output.data['attention_mask'].shape
+        attention_mask_dtype = output.data['attention_mask'].dtype
+
+        _instruct_mask = self.processor(**instruct_input).data['attention_mask']
+
+        def _prepare_instruction_mask(
+                instruct_mask: torch.Tensor,
+                shape: torch.Size,
+                dtype: torch.dtype,
+        ) -> Tensor:
+            # reducing the attention length by 1 in order to omit the attention corresponding to the end_token
+            instruct_mask = instruct_mask[:, :-1]
+
+            # creating instruction attention matrix equivalent to the size of the input attention matrix
+            instruction_attention_mask = torch.zeros(
+                shape, dtype=dtype
+            )
+            instruction_attention_mask[
+            : instruct_mask.size(0), : instruct_mask.size(1)
+            ] = instruct_mask
+
+            # In the pooling layer we want to consider only the tokens corresponding to the input text
+            # and not the instruction. This is achieved by inverting the
+            # attention_mask corresponding to the instruction.
+            instruction_attention_mask = 1 - instruction_attention_mask
+
+            return instruction_attention_mask
+
+        instruction_mask = _prepare_instruction_mask(
+            instruct_mask=_instruct_mask,
+            shape=attention_mask_shape,
+            dtype=attention_mask_dtype
+        )
+
+        output.data['instruction_mask'] = instruction_mask
+
+        return output
 
 
 @add_end_docstrings(BASE_COLLATOR_DOCSTRING)

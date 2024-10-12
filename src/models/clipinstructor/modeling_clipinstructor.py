@@ -112,6 +112,7 @@ class CLIPInstructorModel(CLIPInstructorPreTrainedModel):
             self,
             input_ids: Optional[torch.LongTensor] = None,
             attention_mask: Optional[torch.FloatTensor] = None,
+            instruction_mask: Optional[torch.FloatTensor] = None,
             head_mask: Optional[torch.FloatTensor] = None,
             inputs_embeds: Optional[torch.FloatTensor] = None,
             output_attentions: Optional[bool] = None,
@@ -135,9 +136,11 @@ class CLIPInstructorModel(CLIPInstructorPreTrainedModel):
             return_dict=return_dict,
         )
 
+        pooling_mask = attention_mask * instruction_mask
+
         pooled_output = pool(
             last_hidden_state=text_outputs.last_hidden_state,
-            attention_mask=attention_mask,
+            attention_mask=pooling_mask,
             pool_type=self.pool_type
         )
 
@@ -175,6 +178,7 @@ class CLIPInstructorModel(CLIPInstructorPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             pixel_values: Optional[torch.FloatTensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
+            instruction_mask: Optional[torch.FloatTensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             interpolate_pos_encoding: bool = False,
@@ -210,9 +214,11 @@ class CLIPInstructorModel(CLIPInstructorPreTrainedModel):
 
         image_embeds = vision_outputs.image_embeds.detach()
 
+        pooling_mask = attention_mask * instruction_mask
+
         text_embeds = pool(
             last_hidden_state=text_outputs.last_hidden_state,
-            attention_mask=attention_mask,
+            attention_mask=pooling_mask,
             pool_type=self.pool_type
         )
 
