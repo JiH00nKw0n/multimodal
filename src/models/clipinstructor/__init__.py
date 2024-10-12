@@ -1,0 +1,3 @@
+from .configuration_clipinstructor import CLIPInstructorConfig
+from .modeling_clipinstructor import CLIPInstructorModel
+from .processing_clipinstructor import CLIPInstructorProcessor

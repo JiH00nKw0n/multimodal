@@ -56,12 +56,6 @@ def main() -> None:
     # 핸들러를 로거에 추가
     logger.addHandler(file_handler)
 
-    args = parse_args()
-    if args.debug:
-        logger.basicConfig(level=logging.DEBUG)
-    else:
-        logger.basicConfig(level=logging.INFO)
-
     train_cfg = TrainConfig(**load_yml(args.cfg_path))
 
     init_distributed_mode(args)

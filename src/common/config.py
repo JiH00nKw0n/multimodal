@@ -7,7 +7,7 @@ __all__ = ["TrainConfig", "EvaluateConfig"]
 
 
 @dataclass(config=ConfigDict(
-    extra=Extra.ignore, frozen=True, strict=True, validate_assignment=True
+    extra='ignore', frozen=True, strict=True, validate_assignment=True
 ))
 class BaseConfig:
     """
@@ -56,7 +56,7 @@ class BaseConfig:
 
 
 @dataclass(config=ConfigDict(
-    extra=Extra.ignore, frozen=True, strict=True, validate_assignment=True
+    extra='ignore', frozen=True, strict=True, validate_assignment=True
 ))
 class TrainConfig(BaseConfig):
     """
@@ -87,7 +87,7 @@ class TrainConfig(BaseConfig):
 
 
 @dataclass(config=ConfigDict(
-    extra=Extra.ignore, frozen=True, strict=True, validate_assignment=True
+    extra='ignore', frozen=True, strict=True, validate_assignment=True
 ))
 class EvaluateConfig(BaseConfig):
     """
