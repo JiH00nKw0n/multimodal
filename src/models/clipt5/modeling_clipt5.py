@@ -22,7 +22,7 @@ from src.utils import pool
 logger = logging.get_logger(__name__)
 
 __all__ = [
-    "CLIPT5Output", "CLIPT5PreTrainedModel", "CLIPT5EncoderModel"
+    "CLIPT5Output", "CLIPT5PreTrainedModel", "CLIPT5EncoderModel", "CLIPT5ForConditionalGeneration"
 ]
 
 

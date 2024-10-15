@@ -1,7 +1,7 @@
 from src.models.configuration_base import BaseConfig
 from src.models.modeling_base import BaseModel
 from src.models.clipbert import CLIPBertConfig, CLIPBertProcessor, CLIPBertModel
-from src.models.clipt5 import CLIPT5Config, CLIPT5Processor, CLIPT5EncoderModel
+from src.models.clipt5 import CLIPT5Config, CLIPT5Processor, CLIPT5EncoderModel, CLIPT5ForConditionalGeneration
 from src.models.clipinstructor import CLIPInstructorConfig, CLIPInstructorProcessor, CLIPInstructorModel
 from src.models.processing_base import BaseProcessor
 from src.common.registry import registry
@@ -17,6 +17,7 @@ __all__ = [
     "CLIPT5Config",
     "CLIPT5Processor",
     "CLIPT5EncoderModel",
+    "CLIPT5ForConditionalGeneration",
     "CLIPInstructorConfig",
     "CLIPInstructorProcessor",
     "CLIPInstructorModel",
