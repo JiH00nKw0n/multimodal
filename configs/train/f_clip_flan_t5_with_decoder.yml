@@ -1,6 +1,6 @@
 run:
   task: 'DatasetTrainTaskWithCustomModel'
-  runner: 'RandomSamplerTrainer'
+  runner: 'RandomSamplerWithMultiLossTrainer'
   seed: 2024
 
 collator: 
