@@ -181,7 +181,6 @@ class CLIPBertModel(CLIPBertPreTrainedModel):
             pixel_values: Optional[torch.FloatTensor] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
-            interpolate_pos_encoding: bool = False,
             return_dict: Optional[bool] = None,
     ) -> torch.FloatTensor:
 
@@ -195,7 +194,6 @@ class CLIPBertModel(CLIPBertPreTrainedModel):
             pixel_values=pixel_values,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            interpolate_pos_encoding=interpolate_pos_encoding,
             return_dict=return_dict,
         )
 
@@ -214,7 +212,6 @@ class CLIPBertModel(CLIPBertPreTrainedModel):
             encoder_attention_mask: Optional[torch.Tensor] = None,
             past_key_values: Optional[List[torch.FloatTensor]] = None,
             use_cache: Optional[bool] = None,
-            interpolate_pos_encoding: bool = False,
             return_loss: Optional[bool] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
@@ -231,7 +228,6 @@ class CLIPBertModel(CLIPBertPreTrainedModel):
             pixel_values=pixel_values,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            interpolate_pos_encoding=interpolate_pos_encoding,
             return_dict=return_dict,
         )
 
