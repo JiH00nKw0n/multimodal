@@ -99,6 +99,7 @@ class RandomSamplerWithMultiLossTrainer(RandomSamplerTrainer):
         inputs = dict(inputs, **{
             'return_dict': True,
             'return_loss': True,
+            'labels': inputs['input_ids'],
         })
         outputs = model(**inputs)
         loss = outputs.loss

@@ -384,7 +384,7 @@ class CLIPT5ForConditionalGeneration(CLIPT5PreTrainedModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
 
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        use_cache = use_cache if use_cache is not None else self.text_config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # FutureWarning: head_mask was separated into two input args - head_mask, decoder_head_mask
@@ -428,6 +428,10 @@ class CLIPT5ForConditionalGeneration(CLIPT5PreTrainedModel):
         image_embeds = image_embeds / image_embeds.norm(p=2, dim=-1, keepdim=True)
         text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
 
+        encoder_hidden_states = text_embeds.unsqueeze(1)
+        batch_size, _ = attention_mask.shape
+        encoder_attention_mask = torch.ones(batch_size, 1, dtype=attention_mask.dtype, device=attention_mask.device)
+
         if self.text_model.model_parallel:
             torch.cuda.set_device(self.text_model.decoder.first_device)
 
@@ -452,8 +456,8 @@ class CLIPT5ForConditionalGeneration(CLIPT5PreTrainedModel):
             attention_mask=decoder_attention_mask,
             inputs_embeds=decoder_inputs_embeds,
             past_key_values=past_key_values,
-            encoder_hidden_states=text_embeds,
-            encoder_attention_mask=attention_mask,
+            encoder_hidden_states=encoder_hidden_states,
+            encoder_attention_mask=encoder_attention_mask,
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             use_cache=use_cache,
